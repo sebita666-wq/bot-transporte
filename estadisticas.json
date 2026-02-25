@@ -1,0 +1,21 @@
+{
+  "usuarios": {
+    "whatsapp:+5493434727811": {
+      "primer_contacto": "2026-02-20 18:47:55",
+      "ultimo_contacto": "2026-02-20 19:11:18",
+      "mensajes": 30,
+      "consultas": [
+        "saludo",
+        "no_entendido",
+        "horarios_Parana_Sosa",
+        "precio_Parana_Sosa",
+        "horarios_Parana_Viale"
+      ]
+    }
+  },
+  "metricas": {
+    "total_usuarios_unicos": 1,
+    "total_mensajes": 30,
+    "ultimo_reinicio": "2026-02-20 18:47:55"
+  }
+}

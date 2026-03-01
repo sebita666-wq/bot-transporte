@@ -7,7 +7,7 @@ app = Flask(__name__)
 app.secret_key = 'clave_secreta_para_sesiones'
 app.permanent_session_lifetime = timedelta(minutes=3)
 
-print("🚀 BOT INICIADO - VERSIÓN CORREGIDA (EXTACCIÓN FUNCIONAL)")
+print("🚀 BOT INICIADO - VERSIÓN CORREGIDA (PRECIOS SIEMPRE DISPONIBLES)")
 
 # ============================================
 # DATOS DEL BOT (horarios, precios, tiempos)
@@ -70,21 +70,12 @@ def normalizar_texto(texto):
     return texto
 
 def extraer_origen_destino(mensaje):
-    """
-    Versión mejorada que acepta:
-    - "de viale a parana"
-    - "viale a parana"
-    - "d viale a parana"
-    - "De viale a parana" (con mayúsculas)
-    """
     mensaje_original = mensaje
     mensaje = normalizar_texto(mensaje)
     mensaje = re.sub(r'[¿?!¡.,;:\s]+$', '', mensaje)
     
-    # Lista de localidades válidas (para validación)
     localidades_validas = ["parana", "viale", "tabossi", "sosa", "maria grande"]
     
-    # Primero, intentar con el patrón más común "de X a Y"
     patron_de_a = r'de\s+([a-z]+(?:\s+[a-z]+)?)\s+a\s+([a-z]+(?:\s+[a-z]+)?)'
     match = re.search(patron_de_a, mensaje)
     
@@ -92,14 +83,12 @@ def extraer_origen_destino(mensaje):
         origen = match.group(1).strip()
         destino = match.group(2).strip()
         
-        # Validar que sean localidades conocidas
         if origen in localidades_validas and destino in localidades_validas:
             origen = origen.title()
             destino = destino.title()
             print(f"✅ EXTRAÍDO (patrón 'de a'): {origen} -> {destino}")
             return origen, destino
     
-    # Si no funcionó, probar con "X a Y"
     patron_simple = r'^([a-z]+(?:\s+[a-z]+)?)\s+a\s+([a-z]+(?:\s+[a-z]+)?)$'
     match = re.search(patron_simple, mensaje)
     
@@ -113,7 +102,6 @@ def extraer_origen_destino(mensaje):
             print(f"✅ EXTRAÍDO (patrón 'a'): {origen} -> {destino}")
             return origen, destino
     
-    # Si tampoco, probar con "X Y" (sin "a")
     patron_xy = r'^([a-z]+(?:\s+[a-z]+)?)\s+([a-z]+(?:\s+[a-z]+)?)$'
     match = re.search(patron_xy, mensaje)
     
@@ -374,13 +362,13 @@ def whatsapp_reply():
     
     if sender not in session:
         print("🆕 NUEVA SESIÓN")
-        session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "ultima_fecha": None}
+        session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "ultima_fecha": None, "estado": "menu"}
     
     contexto = session[sender]
     print(f"📌 CONTEXTO ACTUAL: {contexto}")
     
     # ============================================
-    # RESETEO
+    # 1️⃣ RESETEO POR DESPEDIDA
     # ============================================
     if any(p in incoming_msg.lower() for p in ["chau", "adiós", "adios", "bye"]):
         print("✅ CASO: DESPEDIDA")
@@ -401,7 +389,7 @@ def whatsapp_reply():
         return str(resp)
     
     # ============================================
-    # PREGUNTAS FRECUENTES SUELTAS
+    # 2️⃣ PREGUNTAS FRECUENTES SUELTAS
     # ============================================
     faq_resp = responder_pregunta_frecuente(incoming_msg)
     if faq_resp:
@@ -410,17 +398,19 @@ def whatsapp_reply():
         return str(resp)
     
     # ============================================
-    # OPCIONES NUMÉRICAS
+    # 3️⃣ OPCIONES NUMÉRICAS DEL MENÚ
     # ============================================
     if incoming_msg == "1":
         print("✅ CASO: OPCIÓN 1 - HORARIOS")
-        resetear_contexto(sender)
+        contexto["estado"] = "esperando_origen_horarios"
+        session[sender] = contexto
         msg.body(preguntar_origen_destino("horarios"))
         return str(resp)
     
     if incoming_msg == "2":
         print("✅ CASO: OPCIÓN 2 - PRECIOS")
-        resetear_contexto(sender)
+        contexto["estado"] = "esperando_origen_precios"
+        session[sender] = contexto
         msg.body(preguntar_origen_destino("precios"))
         return str(resp)
     
@@ -435,73 +425,129 @@ def whatsapp_reply():
         return str(resp)
     
     # ============================================
-    # SALUDO
+    # 4️⃣ SALUDO
     # ============================================
     if incoming_msg.lower() in ["hola", "buenos dias", "buenas tardes", "ayuda"]:
         print("✅ CASO: SALUDO")
+        contexto["estado"] = "menu"
+        session[sender] = contexto
         msg.body(mostrar_menu())
         return str(resp)
     
     # ============================================
-    # NUEVA CONSULTA (prioritaria)
+    # 5️⃣ PROCESAR RESPUESTAS SEGÚN ESTADO (PRECIO / HORARIO)
     # ============================================
-    print("🔍 Intentando extraer origen/destino...")
+    
+    # 5.1 Si estamos esperando origen para precios
+    if contexto.get("estado") == "esperando_origen_precios":
+        print("🔍 Procesando respuesta para PRECIO...")
+        origen, destino = extraer_origen_destino(incoming_msg)
+        if origen and destino:
+            print(f"✅ Consulta de PRECIO: {origen} -> {destino}")
+            precio = obtener_precio(origen, destino)
+            if precio:
+                msg.body(f"💰 El pasaje de {origen} a {destino} cuesta **${precio}**.")
+            else:
+                msg.body(f"😕 No tengo el precio de {origen} a {destino}.")
+            contexto["ultimo_origen"] = origen
+            contexto["ultimo_destino"] = destino
+            contexto["estado"] = "menu"
+            session[sender] = contexto
+            return str(resp)
+        else:
+            msg.body("🤔 No entendí. Por favor, escribí algo como 'De Viale a Paraná'")
+            return str(resp)
+    
+    # 5.2 Si estamos esperando origen para horarios
+    if contexto.get("estado") == "esperando_origen_horarios":
+        print("🔍 Procesando respuesta para HORARIOS...")
+        origen, destino = extraer_origen_destino(incoming_msg)
+        if origen and destino:
+            print(f"✅ Consulta de HORARIOS: {origen} -> {destino}")
+            fecha = interpretar_fecha(incoming_msg)
+            
+            # Validar día hábil SOLO PARA HORARIOS
+            if not es_dia_habil(fecha):
+                print("  → DÍA NO HÁBIL")
+                msg.body("⚠️ Solo tengo horarios de días hábiles. Probá en otro momento.")
+                contexto["estado"] = "menu"
+                session[sender] = contexto
+                return str(resp)
+            
+            contexto["ultimo_origen"] = origen
+            contexto["ultimo_destino"] = destino
+            contexto["ultima_fecha"] = fecha
+            
+            hora_limite = extraer_hora_limite(incoming_msg)
+            resultados = buscar_viaje(origen, destino, hora_limite)
+            
+            if resultados:
+                fecha_str = fecha.strftime("%d/%m/%Y")
+                if hora_limite:
+                    texto = f"🚌 Servicios de {origen} a {destino} después de {minutos_a_hora(hora_limite)}:\n"
+                else:
+                    texto = f"🚌 Servicios de {origen} a {destino} para {fecha_str}:\n"
+                for r in resultados[:8]:
+                    texto += f"• {r['hora_origen']} → {r['hora_destino']} ({r['servicio']})\n"
+                texto += "\n😊 ¿Necesitas precio, duración, próximo o último?"
+                msg.body(texto)
+            else:
+                msg.body(f"😕 No encontré servicios de {origen} a {destino}.")
+            
+            contexto["estado"] = "menu"
+            session[sender] = contexto
+            return str(resp)
+        else:
+            msg.body("🤔 No entendí. Por favor, escribí algo como 'De Viale a Paraná'")
+            return str(resp)
+    
+    # ============================================
+    # 6️⃣ NUEVA CONSULTA DIRECTA (sin estado previo)
+    # ============================================
+    print("🔍 Intentando extraer origen/destino (consulta directa)...")
     origen, destino = extraer_origen_destino(incoming_msg)
     if origen and destino:
-        print(f"✅ CASO: NUEVA CONSULTA - {origen} -> {destino}")
+        print(f"✅ CONSULTA DIRECTA DETECTADA: {origen} -> {destino}")
         
+        # Detectar si es consulta de precio
+        if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "vale", "$"]):
+            print("  → Es consulta de PRECIO")
+            precio = obtener_precio(origen, destino)
+            if precio:
+                msg.body(f"💰 El pasaje de {origen} a {destino} cuesta **${precio}**.")
+            else:
+                msg.body(f"😕 No tengo el precio de {origen} a {destino}.")
+            contexto["ultimo_origen"] = origen
+            contexto["ultimo_destino"] = destino
+            session[sender] = contexto
+            return str(resp)
+        
+        # Detectar si es consulta de duración
+        if any(p in incoming_msg.lower() for p in ["dura", "tiempo", "demora"]):
+            print("  → Es consulta de DURACIÓN")
+            duracion = obtener_duracion(origen, destino)
+            if duracion:
+                msg.body(f"⏱️ El viaje de {origen} a {destino} dura {formatear_duracion(duracion)}.")
+            else:
+                msg.body(f"😕 No tengo información de la duración.")
+            contexto["ultimo_origen"] = origen
+            contexto["ultimo_destino"] = destino
+            session[sender] = contexto
+            return str(resp)
+        
+        # Si no es precio ni duración, asumimos que es horario (y validamos día hábil)
+        print("  → Asumiendo consulta de HORARIOS")
         fecha = interpretar_fecha(incoming_msg)
         
         if not es_dia_habil(fecha):
             print("  → DÍA NO HÁBIL")
-            msg.body("⚠️ Solo tengo horarios de días hábiles por ahora.")
+            msg.body("⚠️ Solo tengo horarios de días hábiles. Probá en otro momento.")
             return str(resp)
         
         contexto["ultimo_origen"] = origen
         contexto["ultimo_destino"] = destino
         contexto["ultima_fecha"] = fecha
-        session[sender] = contexto
-        print(f"  → Contexto actualizado: {origen} -> {destino}")
         
-        # Primer colectivo
-        if any(p in incoming_msg.lower() for p in ["primer", "primero", "temprano"]):
-            print("  → ES CONSULTA DE PRIMER")
-            if "mañana" in incoming_msg.lower() or "manana" in incoming_msg.lower():
-                fecha = datetime.now() + timedelta(days=1)
-                fecha_str = fecha.strftime("%d/%m/%Y")
-            else:
-                fecha_str = "hoy"
-            primer = primer_colectivo(origen, destino)
-            if primer:
-                msg.body(f"🚌 El primer colectivo de {origen} a {destino} para {fecha_str} sale a las {primer['hora_origen']}.")
-            else:
-                msg.body(f"😕 No hay servicios de {origen} a {destino} para {fecha_str}.")
-            return str(resp)
-        
-        # Próximo colectivo
-        if any(p in incoming_msg.lower() for p in ["próximo", "proximo", "siguiente"]):
-            print("  → ES CONSULTA DE PRÓXIMO")
-            prox, minutos = proximo_colectivo(origen, destino)
-            if prox:
-                if minutos == 0:
-                    msg.body(f"🚌 El próximo colectivo de {origen} a {destino} sale ahora a las {prox['hora_origen']}.")
-                else:
-                    msg.body(f"🚌 El próximo colectivo de {origen} a {destino} sale en {minutos} minutos (a las {prox['hora_origen']}).")
-            else:
-                msg.body(f"😕 No hay más servicios de {origen} a {destino} hoy.")
-            return str(resp)
-        
-        # Último colectivo
-        if any(p in incoming_msg.lower() for p in ["último", "ultimo", "final"]):
-            print("  → ES CONSULTA DE ÚLTIMO")
-            ult = ultimo_colectivo(origen, destino)
-            if ult:
-                msg.body(f"🚌 El último colectivo de {origen} a {destino} sale a las {ult['hora_origen']}.")
-            else:
-                msg.body(f"😕 No hay servicios de {origen} a {destino} hoy.")
-            return str(resp)
-        
-        # Horarios normales
         hora_limite = extraer_hora_limite(incoming_msg)
         resultados = buscar_viaje(origen, destino, hora_limite)
         
@@ -517,24 +563,17 @@ def whatsapp_reply():
             msg.body(texto)
         else:
             msg.body(f"😕 No encontré servicios de {origen} a {destino}.")
+        
+        session[sender] = contexto
         return str(resp)
     
     # ============================================
-    # CONSULTAS SIN CONTEXTO
-    # ============================================
-    if not contexto["ultimo_origen"]:
-        if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "dura", "tiempo", "próximo", "último"]):
-            print("✅ CASO: CONSULTA SIN CONTEXTO")
-            msg.body("📝 Primero decime de dónde a dónde querés viajar. Ej: 'Viale a Paraná'")
-            return str(resp)
-    
-    # ============================================
-    # SEGUIMIENTO CON CONTEXTO
+    # 7️⃣ PREGUNTAS DE SEGUIMIENTO (usando contexto)
     # ============================================
     if contexto["ultimo_origen"] and contexto["ultimo_destino"]:
         o = contexto["ultimo_origen"]
         d = contexto["ultimo_destino"]
-        print(f"✅ CASO: SEGUIMIENTO - contexto {o}->{d}")
+        print(f"✅ SEGUIMIENTO - contexto {o}->{d}")
         
         if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "vale", "$"]):
             print("  → SUB-CASO: PRECIO")
@@ -553,6 +592,10 @@ def whatsapp_reply():
         
         if any(p in incoming_msg.lower() for p in ["próximo", "proximo", "siguiente"]):
             print("  → SUB-CASO: PRÓXIMO")
+            # Validar día hábil para próximo colectivo
+            if not es_dia_habil(datetime.now()):
+                msg.body("⚠️ Solo puedo calcular próximo colectivo en días hábiles.")
+                return str(resp)
             prox, mins = proximo_colectivo(o, d)
             if prox:
                 if mins == 0:
@@ -565,15 +608,36 @@ def whatsapp_reply():
         
         if any(p in incoming_msg.lower() for p in ["último", "ultimo", "final"]):
             print("  → SUB-CASO: ÚLTIMO")
+            # Validar día hábil para último colectivo
+            if not es_dia_habil(datetime.now()):
+                msg.body("⚠️ Solo puedo calcular último colectivo en días hábiles.")
+                return str(resp)
             ult = ultimo_colectivo(o, d)
             if ult:
                 msg.body(f"🚌 El último colectivo de {o} a {d} sale a las {ult['hora_origen']}.")
             else:
                 msg.body(f"😕 No hay servicios de {o} a {d} hoy.")
             return str(resp)
+        
+        if extraer_hora_limite(incoming_msg):
+            print("  → SUB-CASO: HORARIOS CON FILTRO")
+            # Validar día hábil para horarios con filtro
+            if not es_dia_habil(datetime.now()):
+                msg.body("⚠️ Solo puedo mostrar horarios en días hábiles.")
+                return str(resp)
+            hora_limite = extraer_hora_limite(incoming_msg)
+            resultados = buscar_viaje(o, d, hora_limite)
+            if resultados:
+                texto = f"🚌 Servicios después de {minutos_a_hora(hora_limite)}:\n"
+                for r in resultados[:8]:
+                    texto += f"• {r['hora_origen']} → {r['hora_destino']} ({r['servicio']})\n"
+                msg.body(texto)
+            else:
+                msg.body(f"😕 No hay servicios después de esa hora.")
+            return str(resp)
     
     # ============================================
-    # INFORMACIÓN ÚTIL / FAQ
+    # 8️⃣ INFORMACIÓN ÚTIL / FAQ
     # ============================================
     if any(p in incoming_msg.lower() for p in ["info", "telefono", "direccion"]):
         print("✅ CASO: INFORMACIÓN ÚTIL")
@@ -586,7 +650,16 @@ def whatsapp_reply():
         return str(resp)
     
     # ============================================
-    # NO ENTENDIDO
+    # 9️⃣ CONSULTAS SIN CONTEXTO
+    # ============================================
+    if not contexto["ultimo_origen"]:
+        if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "dura", "tiempo", "próximo", "último"]):
+            print("✅ CASO: CONSULTA SIN CONTEXTO")
+            msg.body("📝 Primero decime de dónde a dónde querés viajar. Ej: 'Viale a Paraná'")
+            return str(resp)
+    
+    # ============================================
+    # 🔟 NO ENTENDIDO
     # ============================================
     print("❌ CASO: NO ENTENDIDO")
     msg.body(no_entendido())
@@ -594,7 +667,7 @@ def whatsapp_reply():
     return str(resp)
 
 # ============================================
-# INICIO (VERSIÓN PRODUCCIÓN)
+# INICIO
 # ============================================
 
 if __name__ == '__main__':

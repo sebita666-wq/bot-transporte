@@ -1,6 +1,7 @@
 from flask import Flask, request, session
 from twilio.twiml.messaging_response import MessagingResponse
 from datetime import datetime, timedelta
+import pytz
 import re
 import json
 import os
@@ -9,13 +10,26 @@ app = Flask(__name__)
 app.secret_key = 'clave_secreta_para_sesiones'
 app.permanent_session_lifetime = timedelta(minutes=3)
 
-print("🚀 BOT INICIADO - CHECKPOINT 2 (CORREGIDO: PRÓXIMO/ÚLTIMO/PRIMER)")
+# Configurar zona horaria de Argentina
+os.environ['TZ'] = 'America/Argentina/Buenos_Aires'
+try:
+    timezone = pytz.timezone('America/Argentina/Buenos_Aires')
+except:
+    timezone = pytz.timezone('America/Argentina/Cordoba')  # Alternativa
+
+print("🚀 BOT INICIADO - CHECKPOINT 3 (ZONA HORARIA ARGENTINA)")
 
 # ============================================
 # CONFIGURACIÓN
 # ============================================
 NUMERO_DUENIO = "whatsapp:+5493434727811"
 STATS_FILE = 'estadisticas.json'
+
+# ============================================
+# FUNCIÓN PARA OBTENER HORA ARGENTINA
+# ============================================
+def ahora_argentina():
+    return datetime.now(timezone)
 
 # ============================================
 # ESTADÍSTICAS DE USO
@@ -30,7 +44,7 @@ def cargar_estadisticas():
         "metricas": {
             "total_usuarios_unicos": 0,
             "total_mensajes": 0,
-            "ultimo_reinicio": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "ultimo_reinicio": ahora_argentina().strftime("%Y-%m-%d %H:%M:%S")
         }
     }
 
@@ -40,7 +54,7 @@ def guardar_estadisticas(stats):
 
 def registrar_interaccion(sender, mensaje, tipo_consulta=None):
     stats = cargar_estadisticas()
-    ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ahora = ahora_argentina().strftime("%Y-%m-%d %H:%M:%S")
     
     if sender not in stats["usuarios"]:
         stats["usuarios"][sender] = {
@@ -62,7 +76,7 @@ def registrar_interaccion(sender, mensaje, tipo_consulta=None):
 
 def obtener_resumen_estadisticas():
     stats = cargar_estadisticas()
-    ahora = datetime.now()
+    ahora = ahora_argentina()
     hoy = ahora.strftime("%Y-%m-%d")
     semana_pasada = (ahora - timedelta(days=7)).strftime("%Y-%m-%d")
     
@@ -281,7 +295,7 @@ def extraer_hora_limite(mensaje):
 
 def interpretar_fecha(mensaje):
     mensaje = mensaje.lower()
-    hoy = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    hoy = ahora_argentina().replace(hour=0, minute=0, second=0, microsecond=0)
     
     if "hoy" in mensaje:
         print(f"📅 FECHA: Hoy ({hoy.strftime('%d/%m/%Y')})")
@@ -295,7 +309,8 @@ def interpretar_fecha(mensaje):
                    "jueves": 3, "viernes": 4, "sabado": 5, "sábado": 5, "domingo": 6}
     for dia_nombre, dia_num in dias_semana.items():
         if dia_nombre in mensaje:
-            fecha = hoy + timedelta(days=(dia_num - hoy.weekday() + 7) % 7)
+            dias_para_summar = (dia_num - hoy.weekday() + 7) % 7
+            fecha = hoy + timedelta(days=dias_para_summar)
             print(f"📅 FECHA: Próximo {dia_nombre} ({fecha.strftime('%d/%m/%Y')})")
             return fecha
     
@@ -339,9 +354,9 @@ def primer_colectivo(origen, destino, tipo_dia):
     return None
 
 def proximo_colectivo(origen, destino, tipo_dia):
-    ahora = datetime.now()
+    ahora = ahora_argentina()
     hora_actual_min = ahora.hour * 60 + ahora.minute
-    print(f"🕐 HORA ACTUAL: {ahora.strftime('%H:%M')} ({hora_actual_min} minutos)")
+    print(f"🕐 HORA ACTUAL (Argentina): {ahora.strftime('%H:%M')} ({hora_actual_min} minutos)")
     resultados = buscar_tramos(origen, destino, tipo_dia, hora_actual_min)
     if resultados:
         print(f"  → PRÓXIMO: {resultados[0]['hora_salida']}")
@@ -682,7 +697,7 @@ def whatsapp_reply():
         o = contexto["ultimo_origen"]
         d = contexto["ultimo_destino"]
         print(f"✅ SEGUIMIENTO: {o}->{d}")
-        fecha = datetime.now()
+        fecha = ahora_argentina()
         tipo_dia = obtener_tipo_dia(fecha)
         
         if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "vale", "$"]):

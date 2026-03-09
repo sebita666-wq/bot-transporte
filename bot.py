@@ -16,7 +16,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - CHECKPOINT 10 (BÚSQUEDA DE RECORRIDOS COMPLETOS CORREGIDA)")
+print("🚀 BOT INICIADO - CHECKPOINT 11 (RUTA 18 CORREGIDA + EXTRACCIÓN MEJORADA)")
 
 # ============================================
 # CONFIGURACIÓN (VERSIÓN PRODUCCIÓN)
@@ -453,6 +453,7 @@ def extraer_origen_destino(mensaje):
     
     print(f"🧹 MENSAJE LIMPIO: '{mensaje_limpio}'")
     
+    # Localidades válidas (incluyendo las de dos palabras)
     localidades_validas = [
         "parana", "viale", "tabossi", "sosa", "maria grande", 
         "aldea san antonio", "san antonio"
@@ -460,60 +461,63 @@ def extraer_origen_destino(mensaje):
     
     palabras_temporales = ["mañana", "manana", "hoy", "para", "el", "la", "los", "las", "del", "dia", "jornada"]
     
-    patron_de_a = r'de\s+([a-z]+(?:\s+[a-z]+\.?)?)\s+a\s+([a-z]+(?:\s+[a-z]+\.?)?)'
+    # Función para normalizar una localidad
+    def normalizar_localidad(loc):
+        loc_lower = loc.lower()
+        for valida in localidades_validas:
+            if valida in loc_lower:
+                if valida == "maria grande" and "maria" in loc_lower and "grande" in loc_lower:
+                    return "Maria Grande"
+                if valida == "aldea san antonio" and ("aldea" in loc_lower and "san antonio" in loc_lower):
+                    return "Aldea San Antonio"
+                if valida == "san antonio" and "san antonio" in loc_lower and "aldea" not in loc_lower:
+                    return "Aldea San Antonio"
+                # Para localidades de una palabra
+                if valida in ["parana", "viale", "tabossi", "sosa"]:
+                    return valida.title()
+        return None
+    
+    # Patrón para "de X a Y" donde X e Y pueden tener espacios
+    patron_de_a = r'de\s+(.+?)\s+a\s+(.+)'
     match = re.search(patron_de_a, mensaje_limpio)
     
     if match:
-        origen = match.group(1).strip()
+        origen_raw = match.group(1).strip()
         destino_raw = match.group(2).strip()
         
-        destino = destino_raw
+        # Limpiar palabras temporales del destino
         for palabra in palabras_temporales:
-            if palabra in destino:
-                partes = destino.split(palabra)
-                destino = partes[0].strip()
+            if palabra in destino_raw:
+                partes = destino_raw.split(palabra)
+                destino_raw = partes[0].strip()
                 break
         
-        if "aldea" in origen or "san antonio" in origen:
-            origen = "Aldea San Antonio"
-        if "aldea" in destino or "san antonio" in destino:
-            destino = "Aldea San Antonio"
+        origen = normalizar_localidad(origen_raw)
+        destino = normalizar_localidad(destino_raw)
         
-        origen_valido = origen in localidades_validas or origen == "Aldea San Antonio"
-        destino_valido = destino in localidades_validas or destino == "Aldea San Antonio"
-        
-        if origen_valido and destino_valido:
-            origen = origen.title() if origen != "Aldea San Antonio" else origen
-            destino = destino.title() if destino != "Aldea San Antonio" else destino
-            print(f"✅ EXTRAÍDO: {origen} -> {destino}")
+        if origen and destino:
+            print(f"✅ EXTRAÍDO (patrón 'de a'): {origen} -> {destino}")
             return origen, destino
     
-    patron_simple = r'^([a-z]+(?:\s+[a-z]+\.?)?)\s+a\s+([a-z]+(?:\s+[a-z]+\.?)?)$'
+    # Patrón para "X a Y" (sin "de")
+    patron_simple = r'^(.+?)\s+a\s+(.+)$'
     match = re.search(patron_simple, mensaje_limpio)
     
     if match:
-        origen = match.group(1).strip()
+        origen_raw = match.group(1).strip()
         destino_raw = match.group(2).strip()
         
-        destino = destino_raw
         for palabra in palabras_temporales:
-            if palabra in destino:
-                partes = destino.split(palabra)
-                destino = partes[0].strip()
+            if palabra in destino_raw:
+                partes = destino_raw.split(palabra)
+                destino_raw = partes[0].strip()
                 break
         
-        if "aldea" in origen or "san antonio" in origen:
-            origen = "Aldea San Antonio"
-        if "aldea" in destino or "san antonio" in destino:
-            destino = "Aldea San Antonio"
+        origen = normalizar_localidad(origen_raw)
+        destino = normalizar_localidad(destino_raw)
         
-        origen_valido = origen in localidades_validas or origen == "Aldea San Antonio"
-        destino_valido = destino in localidades_validas or destino == "Aldea San Antonio"
-        
-        if origen_valido and destino_valido:
-            origen = origen.title() if origen != "Aldea San Antonio" else origen
-            destino = destino.title() if destino != "Aldea San Antonio" else destino
-            print(f"✅ EXTRAÍDO: {origen} -> {destino}")
+        if origen and destino:
+            print(f"✅ EXTRAÍDO (patrón 'a'): {origen} -> {destino}")
             return origen, destino
     
     print(f"❌ NO EXTRAJO: '{mensaje_original}'")
@@ -600,29 +604,41 @@ def obtener_tramos_por_dia(tipo_dia):
 def buscar_servicios_completos(origen, destino, tipo_dia, hora_limite=None):
     """
     Busca servicios completos que permitan ir de origen a destino,
-    identificando correctamente los servicios de R18 y R10.
+    considerando tanto viajes de ida como de vuelta.
     """
     print(f"🔍 BUSCANDO SERVICIOS COMPLETOS: {origen} -> {destino} | día: {tipo_dia}")
     tramos_dia = obtener_tramos_por_dia(tipo_dia)
     
-    # Identificar todos los servicios que parten del origen
-    servicios = {}
+    # Primero, buscar servicios que tengan un tramo directo
+    resultados_directos = []
+    for t in tramos_dia:
+        if t["origen"] == origen and t["destino"] == destino:
+            hora_min = hora_a_minutos(t["hora_salida"])
+            if hora_limite is None or hora_min >= hora_limite:
+                resultados_directos.append({
+                    "hora_salida": t["hora_salida"],
+                    "descripcion": f"{origen} → {destino}",
+                    "ruta": t.get("ruta", "R18")
+                })
+    
+    # Luego, buscar servicios que requieran múltiples tramos
+    # Agrupar todos los tramos por hora de salida desde el origen
+    servicios_por_hora = {}
     for t in tramos_dia:
         if t["origen"] == origen:
             clave = t["hora_salida"]
-            if clave not in servicios:
-                servicios[clave] = {
+            if clave not in servicios_por_hora:
+                servicios_por_hora[clave] = {
                     "hora_salida": t["hora_salida"],
-                    "tramos": [],
-                    "ruta": t.get("ruta", "R18")
+                    "tramos": []
                 }
-            servicios[clave]["tramos"].append(t)
+            servicios_por_hora[clave]["tramos"].append(t)
     
     # Para cada servicio, construir el recorrido completo
-    resultados = []
+    resultados_indirectos = []
     localidades_orden = ["Parana", "Aldea San Antonio", "Viale", "Tabossi", "Sosa", "Maria Grande"]
     
-    for hora, servicio in servicios.items():
+    for hora, servicio in servicios_por_hora.items():
         # Ordenar tramos por el orden de las localidades
         tramos_ordenados = sorted(servicio["tramos"], key=lambda x: localidades_orden.index(x["destino"]) if x["destino"] in localidades_orden else 999)
         
@@ -631,37 +647,29 @@ def buscar_servicios_completos(origen, destino, tipo_dia, hora_limite=None):
         if destino in destinos:
             hora_min = hora_a_minutos(hora)
             if hora_limite is None or hora_min >= hora_limite:
-                # Determinar la ruta del servicio
-                if any(t.get("ruta") == "R10" for t in tramos_ordenados):
-                    ruta = "R10"
-                else:
-                    ruta = "R18"
-                
                 # Construir descripción del recorrido
                 desc = f"{origen} → "
                 destinos_unicos = []
                 for d in destinos:
-                    if d not in destinos_unicos:
+                    if d not in destinos_unicos and d != origen:
                         destinos_unicos.append(d)
                 desc += " → ".join(destinos_unicos)
                 
-                resultados.append({
-                    "tipo": "completo",
-                    "origen": origen,
-                    "destino": destino,
+                resultados_indirectos.append({
                     "hora_salida": hora,
-                    "ruta": ruta,
-                    "descripcion": desc
+                    "descripcion": desc,
+                    "ruta": "R18"  # Los servicios con múltiples tramos son R18
                 })
     
-    # Ordenar por hora
-    resultados.sort(key=lambda x: hora_a_minutos(x["hora_salida"]))
+    # Combinar y ordenar
+    todos_resultados = resultados_directos + resultados_indirectos
+    todos_resultados.sort(key=lambda x: hora_a_minutos(x["hora_salida"]))
     
-    print(f"  → Total: {len(resultados)} servicios encontrados")
-    for r in resultados:
+    print(f"  → Total: {len(todos_resultados)} servicios encontrados")
+    for r in todos_resultados:
         print(f"    → {r['hora_salida']}: {r['descripcion']} ({r['ruta']})")
     
-    return resultados
+    return todos_resultados
 
 def obtener_precio(origen, destino):
     precio = precios.get((origen, destino))

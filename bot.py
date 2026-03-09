@@ -16,7 +16,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')  # Alternativa
 
-print("🚀 BOT INICIADO - CHECKPOINT 4 (INTERPRETACIÓN MEJORADA)")
+print("🚀 BOT INICIADO - CHECKPOINT 5 (INTERPRETACIÓN MEJORADA + SEGUIMIENTO DE FECHA)")
 
 # ============================================
 # CONFIGURACIÓN (VERSIÓN PRODUCCIÓN)
@@ -461,13 +461,24 @@ def extraer_origen_destino(mensaje):
         "aldea san antonio", "san antonio"
     ]
     
+    # Palabras temporales a eliminar del destino
+    palabras_temporales = ["mañana", "manana", "hoy", "para", "el", "la", "los", "las", "del", "dia", "jornada"]
+    
     # Buscar patrón "de X a Y" en el mensaje limpio
     patron_de_a = r'de\s+([a-z]+(?:\s+[a-z]+\.?)?)\s+a\s+([a-z]+(?:\s+[a-z]+\.?)?)'
     match = re.search(patron_de_a, mensaje_limpio)
     
     if match:
         origen = match.group(1).strip()
-        destino = match.group(2).strip()
+        destino_raw = match.group(2).strip()
+        
+        # Limpiar el destino de palabras temporales
+        destino = destino_raw
+        for palabra in palabras_temporales:
+            if palabra in destino:
+                partes = destino.split(palabra)
+                destino = partes[0].strip()
+                break
         
         # Normalizar Aldea San Antonio
         if "aldea" in origen or "san antonio" in origen:
@@ -491,7 +502,15 @@ def extraer_origen_destino(mensaje):
     
     if match:
         origen = match.group(1).strip()
-        destino = match.group(2).strip()
+        destino_raw = match.group(2).strip()
+        
+        # Limpiar el destino de palabras temporales
+        destino = destino_raw
+        for palabra in palabras_temporales:
+            if palabra in destino:
+                partes = destino.split(palabra)
+                destino = partes[0].strip()
+                break
         
         if "aldea" in origen or "san antonio" in origen:
             origen = "Aldea San Antonio"
@@ -897,7 +916,7 @@ def whatsapp_reply():
             return str(resp)
     
     # ============================================
-    # NUEVA CONSULTA DIRECTA (con detección de intención)
+    # NUEVA CONSULTA DIRECTA (con detección de intención y extracción mejorada)
     # ============================================
     print("🔍 Intentando extraer origen/destino...")
     
@@ -908,7 +927,7 @@ def whatsapp_reply():
     origen, destino = extraer_origen_destino(incoming_msg)
     
     if origen and destino:
-        print(f"✅ CONSULTA DIRECTA: {origen} -> {destino} | intención: {intencion}")
+        print(f"✅ CONSULTA DIRECTA COMPLETA: {origen} -> {destino} | intención: {intencion} | fecha: {fecha.strftime('%d/%m/%Y')}")
         tipo_dia = obtener_tipo_dia(fecha)
         
         if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "vale", "$"]):
@@ -982,6 +1001,12 @@ def whatsapp_reply():
     # Si hay intención pero no origen/destino, guardamos para después
     if intencion and not origen:
         print(f"✅ INTENCIÓN DETECTADA SIN ORIGEN/DESTINO: {intencion}")
+        
+        # Si ya hay una fecha pendiente (de una consulta anterior), la mantenemos
+        if contexto.get("fecha_pendiente") and "mañana" not in incoming_msg.lower() and not re.search(r'\d{1,2}[/\-\.]\d{1,2}', incoming_msg):
+            fecha = contexto["fecha_pendiente"]
+            print(f"📅 MANTENIENDO FECHA ANTERIOR: {fecha.strftime('%d/%m/%Y')}")
+        
         contexto["estado"] = "esperando_origen_horarios"
         contexto["intencion"] = intencion
         contexto["fecha_pendiente"] = fecha

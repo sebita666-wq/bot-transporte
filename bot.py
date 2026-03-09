@@ -16,10 +16,10 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - CHECKPOINT 12 (DIFERENCIACIÓN DE RUTAS)")
+print("🚀 BOT INICIADO - CHECKPOINT 13 (MARIA GRANDE DETECTADO + R18 CORREGIDA)")
 
 # ============================================
-# CONFIGURACIÓN (VERSIÓN PRODUCCIÓN)
+# CONFIGURACIÓN
 # ============================================
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -34,7 +34,7 @@ def ahora_argentina():
     return datetime.now(timezone)
 
 # ============================================
-# FERIADOS NACIONALES 2026 (se tratan como domingo)
+# FERIADOS NACIONALES 2026
 # ============================================
 FERIADOS_NACIONALES = [
     "2026-01-01", "2026-02-16", "2026-02-17", "2026-03-24", "2026-04-02",
@@ -352,7 +352,7 @@ tramos_domingos = [
 ]
 
 # ============================================
-# TABLA DE PRECIOS (ACTUALIZADA)
+# TABLA DE PRECIOS
 # ============================================
 
 precios = {
@@ -412,112 +412,69 @@ def normalizar_texto(texto):
         texto = texto.replace(acentuada, normal)
     return texto
 
-# Lista de frases introductorias a eliminar
-FRASES_INTRO = [
-    "cual es el", "cual es la", "cual es",
-    "podrias decirme", "podría decirme", "me podrias decir", "me podría decir",
-    "quiero saber", "quisiera saber", "necesito saber",
-    "decime", "contame", "dime", "dígame",
-    "primer servicio", "primer colectivo", "primer",
-    "último servicio", "último colectivo", "último", "ultimo",
-    "próximo servicio", "próximo colectivo", "próximo", "proximo",
-    "horarios de", "horario de", "hora de"
-]
-
-def limpiar_mensaje(mensaje):
-    """Elimina frases introductorias del mensaje para facilitar la extracción"""
-    mensaje_limpio = mensaje.lower()
-    for frase in FRASES_INTRO:
-        if frase in mensaje_limpio:
-            mensaje_limpio = mensaje_limpio.replace(frase, " ")
-    mensaje_limpio = re.sub(r'\s+', ' ', mensaje_limpio).strip()
-    return mensaje_limpio
-
-def detectar_intencion(mensaje):
-    """Detecta si la consulta es sobre primer, próximo o último colectivo"""
-    mensaje_lower = mensaje.lower()
-    if any(p in mensaje_lower for p in ["primer", "primero", "primer servicio", "primer colectivo"]):
-        return "primer"
-    if any(p in mensaje_lower for p in ["próximo", "proximo", "siguiente", "próximo colectivo"]):
-        return "proximo"
-    if any(p in mensaje_lower for p in ["último", "ultimo", "final", "último servicio"]):
-        return "ultimo"
-    return None
-
 def extraer_origen_destino(mensaje):
+    """
+    Extrae origen y destino de frases como 'de parana a maria grande'
+    Versión simplificada y robusta.
+    """
     mensaje_original = mensaje
     
-    mensaje_limpio = limpiar_mensaje(mensaje)
-    mensaje_limpio = normalizar_texto(mensaje_limpio)
+    # Limpiar frases introductorias comunes
+    frases_intro = [
+        "cual es el", "cual es la", "podrias decirme", "quiero saber", 
+        "necesito saber", "decime", "contame", "y el", "el"
+    ]
+    mensaje_limpio = mensaje.lower()
+    for frase in frases_intro:
+        mensaje_limpio = mensaje_limpio.replace(frase, "")
+    
+    # Eliminar signos de puntuación
     mensaje_limpio = re.sub(r'[¿?!¡.,;:\s]+$', '', mensaje_limpio)
+    mensaje_limpio = mensaje_limpio.strip()
     
     print(f"🧹 MENSAJE LIMPIO: '{mensaje_limpio}'")
     
-    # Localidades válidas (incluyendo las de dos palabras)
-    localidades_validas = [
-        "parana", "viale", "tabossi", "sosa", "maria grande", 
-        "aldea san antonio", "san antonio"
-    ]
+    # Buscar patrón "de X a Y"
+    patron = r'de\s+(.+?)\s+a\s+(.+)'
+    match = re.search(patron, mensaje_limpio)
     
-    palabras_temporales = ["mañana", "manana", "hoy", "para", "el", "la", "los", "las", "del", "dia", "jornada"]
-    
-    # Función para normalizar una localidad
-    def normalizar_localidad(loc):
-        loc_lower = loc.lower()
-        for valida in localidades_validas:
-            if valida in loc_lower:
-                if valida == "maria grande" and "maria" in loc_lower and "grande" in loc_lower:
-                    return "Maria Grande"
-                if valida == "aldea san antonio" and ("aldea" in loc_lower and "san antonio" in loc_lower):
-                    return "Aldea San Antonio"
-                if valida == "san antonio" and "san antonio" in loc_lower and "aldea" not in loc_lower:
-                    return "Aldea San Antonio"
-                # Para localidades de una palabra
-                if valida in ["parana", "viale", "tabossi", "sosa"]:
-                    return valida.title()
-        return None
-    
-    # Patrón para "de X a Y" donde X e Y pueden tener espacios
-    patron_de_a = r'de\s+(.+?)\s+a\s+(.+)'
-    match = re.search(patron_de_a, mensaje_limpio)
+    if not match:
+        # Intentar sin "de"
+        patron = r'^(.+?)\s+a\s+(.+)$'
+        match = re.search(patron, mensaje_limpio)
     
     if match:
         origen_raw = match.group(1).strip()
         destino_raw = match.group(2).strip()
         
-        # Limpiar palabras temporales del destino
+        # Eliminar palabras temporales del destino
+        palabras_temporales = ["mañana", "manana", "hoy", "para", "el", "la", "del"]
         for palabra in palabras_temporales:
             if palabra in destino_raw:
-                partes = destino_raw.split(palabra)
-                destino_raw = partes[0].strip()
-                break
+                destino_raw = destino_raw.replace(palabra, "").strip()
         
-        origen = normalizar_localidad(origen_raw)
-        destino = normalizar_localidad(destino_raw)
+        # Normalizar localidades
+        localidades_map = {
+            "parana": "Parana",
+            "viale": "Viale",
+            "tabossi": "Tabossi",
+            "sosa": "Sosa",
+            "maria grande": "Maria Grande",
+            "aldea san antonio": "Aldea San Antonio",
+            "san antonio": "Aldea San Antonio"
+        }
         
-        if origen and destino:
-            print(f"✅ EXTRAÍDO (patrón 'de a'): {origen} -> {destino}")
-            return origen, destino
-    
-    # Patrón para "X a Y" (sin "de")
-    patron_simple = r'^(.+?)\s+a\s+(.+)$'
-    match = re.search(patron_simple, mensaje_limpio)
-    
-    if match:
-        origen_raw = match.group(1).strip()
-        destino_raw = match.group(2).strip()
+        origen = None
+        destino = None
         
-        for palabra in palabras_temporales:
-            if palabra in destino_raw:
-                partes = destino_raw.split(palabra)
-                destino_raw = partes[0].strip()
-                break
-        
-        origen = normalizar_localidad(origen_raw)
-        destino = normalizar_localidad(destino_raw)
+        for key, value in localidades_map.items():
+            if key in origen_raw:
+                origen = value
+            if key in destino_raw:
+                destino = value
         
         if origen and destino:
-            print(f"✅ EXTRAÍDO (patrón 'a'): {origen} -> {destino}")
+            print(f"✅ EXTRAÍDO: {origen} -> {destino}")
             return origen, destino
     
     print(f"❌ NO EXTRAJO: '{mensaje_original}'")
@@ -550,21 +507,6 @@ def interpretar_fecha(mensaje):
         manana = hoy + timedelta(days=1)
         print(f"📅 FECHA: Mañana ({manana.strftime('%d/%m/%Y')})")
         return manana
-    
-    patron_fecha = r'(\d{1,2})[/\-\.](\d{1,2})[/\-\.]?(\d{2,4})?'
-    match = re.search(patron_fecha, mensaje)
-    if match:
-        dia = int(match.group(1))
-        mes = int(match.group(2))
-        anio = int(match.group(3)) if match.group(3) else hoy.year
-        if anio < 100:
-            anio += 2000
-        try:
-            fecha = datetime(anio, mes, dia)
-            print(f"📅 FECHA: {fecha.strftime('%d/%m/%Y')}")
-            return fecha
-        except:
-            pass
     
     dias_semana = {"lunes": 0, "martes": 1, "miercoles": 2, "miércoles": 2,
                    "jueves": 3, "viernes": 4, "sabado": 5, "sábado": 5, "domingo": 6}
@@ -604,7 +546,7 @@ def obtener_tramos_por_dia(tipo_dia):
 def buscar_servicios_por_ruta(origen, destino, tipo_dia, hora_limite=None):
     """
     Busca servicios que permitan ir de origen a destino,
-    agrupados por ruta.
+    agrupados por ruta. Versión mejorada que encadena tramos.
     """
     print(f"🔍 BUSCANDO SERVICIOS POR RUTA: {origen} -> {destino} | día: {tipo_dia}")
     tramos_dia = obtener_tramos_por_dia(tipo_dia)
@@ -619,7 +561,6 @@ def buscar_servicios_por_ruta(origen, destino, tipo_dia, hora_limite=None):
                 if t["hora_salida"] not in resultados_por_ruta["R10"]:
                     resultados_por_ruta["R10"].append(t["hora_salida"])
     
-    # Buscar servicios de Ruta 18 (múltiples tramos)
     # Identificar todos los servicios que parten del origen
     servicios_por_hora = {}
     for t in tramos_dia:
@@ -632,14 +573,19 @@ def buscar_servicios_por_ruta(origen, destino, tipo_dia, hora_limite=None):
                 }
             servicios_por_hora[clave]["tramos"].append(t)
     
-    # Para cada servicio, ver si llega al destino
+    # Para cada servicio, construir el recorrido completo
     for hora, servicio in servicios_por_hora.items():
-        destinos = [t["destino"] for t in servicio["tramos"]]
+        # Ordenar tramos por orden de localidades
+        localidades_orden = ["Parana", "Aldea San Antonio", "Viale", "Tabossi", "Sosa", "Maria Grande"]
+        tramos_ordenados = sorted(servicio["tramos"], key=lambda x: localidades_orden.index(x["destino"]) if x["destino"] in localidades_orden else 999)
+        
+        # Verificar si el destino está en el recorrido
+        destinos = [t["destino"] for t in tramos_ordenados]
         if destino in destinos:
             hora_min = hora_a_minutos(hora)
             if hora_limite is None or hora_min >= hora_limite:
-                # Verificar si es R10 (alguno de los tramos es R10)
-                if any(t.get("ruta") == "R10" for t in servicio["tramos"]):
+                # Determinar si es R10 (alguno de los tramos es R10)
+                if any(t.get("ruta") == "R10" for t in tramos_ordenados):
                     if hora not in resultados_por_ruta["R10"]:
                         resultados_por_ruta["R10"].append(hora)
                 else:
@@ -691,10 +637,17 @@ def obtener_precio(origen, destino):
 def primer_colectivo(origen, destino, tipo_dia):
     print(f"🔍 BUSCANDO PRIMER COLECTIVO: {origen} -> {destino}")
     resultados = buscar_servicios_por_ruta(origen, destino, tipo_dia)
-    # Tomar el primer horario de cualquier ruta
-    if resultados["R10"]:
+    if resultados["R10"] and resultados["R18"]:
+        # Tomar el más temprano
+        r10_min = hora_a_minutos(resultados["R10"][0])
+        r18_min = hora_a_minutos(resultados["R18"][0])
+        if r10_min <= r18_min:
+            return {"hora_salida": resultados["R10"][0], "ruta": "R10"}
+        else:
+            return {"hora_salida": resultados["R18"][0], "ruta": "R18"}
+    elif resultados["R10"]:
         return {"hora_salida": resultados["R10"][0], "ruta": "R10"}
-    if resultados["R18"]:
+    elif resultados["R18"]:
         return {"hora_salida": resultados["R18"][0], "ruta": "R18"}
     return None
 
@@ -703,25 +656,40 @@ def proximo_colectivo(origen, destino, tipo_dia):
     hora_actual_min = ahora.hour * 60 + ahora.minute
     print(f"🕐 HORA ACTUAL (Argentina): {ahora.strftime('%H:%M')} ({hora_actual_min} minutos)")
     resultados = buscar_servicios_por_ruta(origen, destino, tipo_dia, hora_actual_min)
+    
+    # Buscar el más próximo entre ambas rutas
+    candidatos = []
     if resultados["R10"]:
-        return {"hora_salida": resultados["R10"][0], "ruta": "R10"}
+        candidatos.append({"hora": resultados["R10"][0], "ruta": "R10"})
     if resultados["R18"]:
-        return {"hora_salida": resultados["R18"][0], "ruta": "R18"}
+        candidatos.append({"hora": resultados["R18"][0], "ruta": "R18"})
+    
+    if candidatos:
+        # Ordenar por hora
+        candidatos.sort(key=lambda x: hora_a_minutos(x["hora"]))
+        return candidatos[0]
     return None
 
 def ultimo_colectivo(origen, destino, tipo_dia):
     print(f"🔍 BUSCANDO ÚLTIMO COLECTIVO: {origen} -> {destino}")
     resultados = buscar_servicios_por_ruta(origen, destino, tipo_dia)
-    # Tomar el último horario de cualquier ruta
+    
+    # Buscar el más tardío entre ambas rutas
     ultimo = None
     ultimo_ruta = None
+    
     if resultados["R10"]:
         ultimo = resultados["R10"][-1]
         ultimo_ruta = "R10"
+        ultimo_min = hora_a_minutos(ultimo)
+    
     if resultados["R18"]:
-        if not ultimo or hora_a_minutos(resultados["R18"][-1]) > hora_a_minutos(ultimo):
-            ultimo = resultados["R18"][-1]
+        r18_ultimo = resultados["R18"][-1]
+        r18_min = hora_a_minutos(r18_ultimo)
+        if not ultimo or r18_min > hora_a_minutos(ultimo):
+            ultimo = r18_ultimo
             ultimo_ruta = "R18"
+    
     if ultimo:
         return {"hora_salida": ultimo, "ruta": ultimo_ruta}
     return None
@@ -758,7 +726,7 @@ def mostrar_menu():
             "4️⃣ Preguntas frecuentes\n\n"
             "O escribí directamente lo que necesitas, por ejemplo:\n"
             "• 'De Viale a Parana'\n"
-            "• 'Primer colectivo de Parana a Viale mañana'\n"
+            "• 'De Parana a Maria Grande'\n"
             "• 'Precio de Parana a Aldea San Antonio'")
 
 def preguntar_origen_destino(tipo):
@@ -789,7 +757,7 @@ def no_entendido():
             "Podés escribir:\n"
             "• 'Hola' para ver el menú\n"
             "• 'De Viale a Parana' para horarios\n"
-            "• 'Primer colectivo de Parana a Viale mañana'\n"
+            "• 'De Parana a Maria Grande'\n"
             "• 'Precio de Parana a Aldea San Antonio'")
 
 def resetear_contexto(sender):

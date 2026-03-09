@@ -16,7 +16,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - CHECKPOINT 7 (PRECIOS ACTUALIZADOS + SEGUIMIENTO CORREGIDO)")
+print("🚀 BOT INICIADO - CHECKPOINT 8 (BÚSQUEDA DE RECORRIDOS COMPLETOS)")
 
 # ============================================
 # CONFIGURACIÓN (VERSIÓN PRODUCCIÓN)
@@ -597,20 +597,82 @@ def obtener_tramos_por_dia(tipo_dia):
     else:
         return tramos_domingos
 
-def buscar_tramos(origen, destino, tipo_dia, hora_limite=None, ruta=None):
-    print(f"🔍 BUSCANDO TRAMOS: {origen} -> {destino} | día: {tipo_dia} | hora_limite: {hora_limite}")
+def buscar_servicios_completos(origen, destino, tipo_dia, hora_limite=None):
+    """
+    Busca servicios completos que permitan ir de origen a destino,
+    encadenando tramos cuando no hay un tramo directo.
+    """
+    print(f"🔍 BUSCANDO SERVICIOS COMPLETOS: {origen} -> {destino} | día: {tipo_dia}")
     tramos_dia = obtener_tramos_por_dia(tipo_dia)
-    resultados = []
+    
+    # Primero, buscar tramos directos
+    resultados_directos = []
     for t in tramos_dia:
         if t["origen"] == origen and t["destino"] == destino:
-            if ruta is None or t.get("ruta") == ruta:
-                hora_min = hora_a_minutos(t["hora_salida"])
+            hora_min = hora_a_minutos(t["hora_salida"])
+            if hora_limite is None or hora_min >= hora_limite:
+                resultados_directos.append({
+                    "tipo": "directo",
+                    "origen": origen,
+                    "destino": destino,
+                    "hora_salida": t["hora_salida"],
+                    "ruta": t.get("ruta", ""),
+                    "descripcion": f"{origen} → {destino}"
+                })
+    
+    # Luego, buscar servicios que requieran múltiples tramos
+    # Identificamos todos los servicios (por hora de salida de origen)
+    servicios_por_hora = {}
+    for t in tramos_dia:
+        if t["origen"] == origen:
+            clave = f"{t['hora_salida']}_{t.get('ruta', '')}"
+            if clave not in servicios_por_hora:
+                servicios_por_hora[clave] = {
+                    "hora_salida": t["hora_salida"],
+                    "ruta": t.get("ruta", ""),
+                    "tramos": []
+                }
+            servicios_por_hora[clave]["tramos"].append(t)
+    
+    # Para cada servicio, ver si llega al destino
+    resultados_indirectos = []
+    for servicio in servicios_por_hora.values():
+        tramos = servicio["tramos"]
+        # Ordenar tramos por el orden de las localidades
+        localidades_orden = ["Parana", "Aldea San Antonio", "Viale", "Tabossi", "Sosa", "Maria Grande"]
+        tramos_ordenados = sorted(tramos, key=lambda x: localidades_orden.index(x["destino"]) if x["destino"] in localidades_orden else 999)
+        
+        # Verificar si el destino está en algún tramo
+        for t in tramos_ordenados:
+            if t["destino"] == destino:
+                hora_min = hora_a_minutos(servicio["hora_salida"])
                 if hora_limite is None or hora_min >= hora_limite:
-                    print(f"  → Encontrado: {t['hora_salida']} ({t.get('ruta', '')})")
-                    resultados.append(t)
-    resultados.sort(key=lambda x: hora_a_minutos(x["hora_salida"]))
-    print(f"  → Total: {len(resultados)} resultados")
-    return resultados
+                    # Construir descripción del recorrido
+                    desc = f"{origen} → "
+                    for tramo in tramos_ordenados:
+                        if tramo != tramos_ordenados[-1]:
+                            desc += f"{tramo['destino']} → "
+                        else:
+                            desc += f"{tramo['destino']}"
+                    resultados_indirectos.append({
+                        "tipo": "completo",
+                        "origen": origen,
+                        "destino": destino,
+                        "hora_salida": servicio["hora_salida"],
+                        "ruta": servicio.get("ruta", ""),
+                        "descripcion": desc
+                    })
+                break
+    
+    # Combinar y ordenar resultados
+    todos_resultados = resultados_directos + resultados_indirectos
+    todos_resultados.sort(key=lambda x: hora_a_minutos(x["hora_salida"]))
+    
+    print(f"  → Total: {len(todos_resultados)} servicios encontrados")
+    for r in todos_resultados:
+        print(f"    → {r['hora_salida']}: {r['descripcion']} ({r.get('ruta', '')})")
+    
+    return todos_resultados
 
 def obtener_precio(origen, destino):
     precio = precios.get((origen, destino))
@@ -619,7 +681,7 @@ def obtener_precio(origen, destino):
 
 def primer_colectivo(origen, destino, tipo_dia):
     print(f"🔍 BUSCANDO PRIMER COLECTIVO: {origen} -> {destino}")
-    resultados = buscar_tramos(origen, destino, tipo_dia)
+    resultados = buscar_servicios_completos(origen, destino, tipo_dia)
     if resultados:
         print(f"  → PRIMERO: {resultados[0]['hora_salida']}")
         return resultados[0]
@@ -630,7 +692,7 @@ def proximo_colectivo(origen, destino, tipo_dia):
     ahora = ahora_argentina()
     hora_actual_min = ahora.hour * 60 + ahora.minute
     print(f"🕐 HORA ACTUAL (Argentina): {ahora.strftime('%H:%M')} ({hora_actual_min} minutos)")
-    resultados = buscar_tramos(origen, destino, tipo_dia, hora_actual_min)
+    resultados = buscar_servicios_completos(origen, destino, tipo_dia, hora_actual_min)
     if resultados:
         print(f"  → PRÓXIMO: {resultados[0]['hora_salida']}")
         return resultados[0]
@@ -639,7 +701,7 @@ def proximo_colectivo(origen, destino, tipo_dia):
 
 def ultimo_colectivo(origen, destino, tipo_dia):
     print(f"🔍 BUSCANDO ÚLTIMO COLECTIVO: {origen} -> {destino}")
-    resultados = buscar_tramos(origen, destino, tipo_dia)
+    resultados = buscar_servicios_completos(origen, destino, tipo_dia)
     if resultados:
         print(f"  → ÚLTIMO: {resultados[-1]['hora_salida']}")
         return resultados[-1]
@@ -651,8 +713,7 @@ def formatear_horarios(resultados):
         return None
     texto = ""
     for r in resultados[:8]:
-        ruta_text = f" ({r['ruta']})" if r.get('ruta') else ""
-        texto += f"• {r['hora_salida']}{ruta_text}\n"
+        texto += f"• {r['hora_salida']}: {r['descripcion']}\n"
     return texto
 
 def responder_pregunta_frecuente(mensaje):
@@ -889,17 +950,17 @@ def whatsapp_reply():
                     msg.body(f"😕 No hay servicios de {origen} a {destino} para hoy.")
             else:
                 hora_limite = extraer_hora_limite(incoming_msg)
-                resultados = buscar_tramos(origen, destino, tipo_dia, hora_limite)
+                resultados = buscar_servicios_completos(origen, destino, tipo_dia, hora_limite)
                 if resultados:
                     fecha_str = fecha.strftime("%d/%m/%Y")
                     if hora_limite:
-                        texto = f"🚌 Horarios de {origen} a {destino} después de {minutos_a_hora(hora_limite)} ({tipo_dia}):\n"
+                        texto = f"🚌 Servicios de {origen} a {destino} después de {minutos_a_hora(hora_limite)} ({tipo_dia}):\n"
                     else:
-                        texto = f"🚌 Horarios de {origen} a {destino} para {fecha_str} ({tipo_dia}):\n"
+                        texto = f"🚌 Servicios de {origen} a {destino} para {fecha_str} ({tipo_dia}):\n"
                     texto += formatear_horarios(resultados)
                     msg.body(texto)
                 else:
-                    msg.body(f"😕 No encontré horarios de {origen} a {destino} para {tipo_dia}.")
+                    msg.body(f"😕 No encontré servicios de {origen} a {destino} para {tipo_dia}.")
             
             contexto["ultimo_origen"] = origen
             contexto["ultimo_destino"] = destino
@@ -982,17 +1043,17 @@ def whatsapp_reply():
         # Horarios comunes
         print("  → Asumiendo consulta de HORARIOS")
         hora_limite = extraer_hora_limite(incoming_msg)
-        resultados = buscar_tramos(origen, destino, tipo_dia, hora_limite)
+        resultados = buscar_servicios_completos(origen, destino, tipo_dia, hora_limite)
         if resultados:
             fecha_str = fecha.strftime("%d/%m/%Y")
             if hora_limite:
-                texto = f"🚌 Horarios de {origen} a {destino} después de {minutos_a_hora(hora_limite)} ({tipo_dia}):\n"
+                texto = f"🚌 Servicios de {origen} a {destino} después de {minutos_a_hora(hora_limite)} ({tipo_dia}):\n"
             else:
-                texto = f"🚌 Horarios de {origen} a {destino} para {fecha_str} ({tipo_dia}):\n"
+                texto = f"🚌 Servicios de {origen} a {destino} para {fecha_str} ({tipo_dia}):\n"
             texto += formatear_horarios(resultados)
             msg.body(texto)
         else:
-            msg.body(f"😕 No encontré horarios de {origen} a {destino} para {tipo_dia}.")
+            msg.body(f"😕 No encontré servicios de {origen} a {destino} para {tipo_dia}.")
         contexto["ultimo_origen"] = origen
         contexto["ultimo_destino"] = destino
         session[sender] = contexto

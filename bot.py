@@ -16,7 +16,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - CHECKPOINT 8 (BÚSQUEDA DE RECORRIDOS COMPLETOS)")
+print("🚀 BOT INICIADO - CHECKPOINT 9 (BÚSQUEDA DE RECORRIDOS COMPLETOS CORREGIDA)")
 
 # ============================================
 # CONFIGURACIÓN (VERSIÓN PRODUCCIÓN)
@@ -620,27 +620,29 @@ def buscar_servicios_completos(origen, destino, tipo_dia, hora_limite=None):
                     "descripcion": f"{origen} → {destino}"
                 })
     
-    # Luego, buscar servicios que requieran múltiples tramos
-    # Identificamos todos los servicios (por hora de salida de origen)
+    # Identificar servicios que parten del origen
     servicios_por_hora = {}
     for t in tramos_dia:
         if t["origen"] == origen:
-            clave = f"{t['hora_salida']}_{t.get('ruta', '')}"
+            clave = t["hora_salida"]
             if clave not in servicios_por_hora:
                 servicios_por_hora[clave] = {
                     "hora_salida": t["hora_salida"],
-                    "ruta": t.get("ruta", ""),
                     "tramos": []
                 }
             servicios_por_hora[clave]["tramos"].append(t)
     
-    # Para cada servicio, ver si llega al destino
+    # Para cada servicio, determinar si llega al destino
     resultados_indirectos = []
-    for servicio in servicios_por_hora.values():
-        tramos = servicio["tramos"]
+    servicios_vistos = set()  # Para evitar duplicados
+    
+    for hora, servicio in servicios_por_hora.items():
+        if hora in servicios_vistos:
+            continue
+        
         # Ordenar tramos por el orden de las localidades
         localidades_orden = ["Parana", "Aldea San Antonio", "Viale", "Tabossi", "Sosa", "Maria Grande"]
-        tramos_ordenados = sorted(tramos, key=lambda x: localidades_orden.index(x["destino"]) if x["destino"] in localidades_orden else 999)
+        tramos_ordenados = sorted(servicio["tramos"], key=lambda x: localidades_orden.index(x["destino"]) if x["destino"] in localidades_orden else 999)
         
         # Verificar si el destino está en algún tramo
         for t in tramos_ordenados:
@@ -649,19 +651,21 @@ def buscar_servicios_completos(origen, destino, tipo_dia, hora_limite=None):
                 if hora_limite is None or hora_min >= hora_limite:
                     # Construir descripción del recorrido
                     desc = f"{origen} → "
+                    destinos_tramo = []
                     for tramo in tramos_ordenados:
-                        if tramo != tramos_ordenados[-1]:
-                            desc += f"{tramo['destino']} → "
-                        else:
-                            desc += f"{tramo['destino']}"
+                        if tramo["destino"] not in destinos_tramo:
+                            destinos_tramo.append(tramo["destino"])
+                    desc += " → ".join(destinos_tramo)
+                    
                     resultados_indirectos.append({
                         "tipo": "completo",
                         "origen": origen,
                         "destino": destino,
                         "hora_salida": servicio["hora_salida"],
-                        "ruta": servicio.get("ruta", ""),
+                        "ruta": "R18",
                         "descripcion": desc
                     })
+                    servicios_vistos.add(hora)
                 break
     
     # Combinar y ordenar resultados

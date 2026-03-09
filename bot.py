@@ -5,53 +5,68 @@ import os
 app = Flask(__name__)
 
 # ============================================
-# HORARIOS - SOLO LOS ESENCIALES
+# HORARIOS (SOLO IDA, DÍAS HÁBILES, SIN RUTAS)
 # ============================================
-# Formato: (origen, destino) -> [horarios]
 horarios = {
     ("Parana", "Viale"): ["04:45", "05:35", "08:45", "10:00", "12:15", "13:05", "14:00", "15:30", "17:15", "18:00", "19:30", "20:45", "23:00"],
     ("Viale", "Parana"): ["05:10", "06:05", "07:20", "08:15", "10:25", "10:45", "12:00", "13:30", "15:40", "17:30", "19:40", "21:10", "00:30"],
-    ("Parana", "Maria Grande"): ["07:45", "10:15", "16:30"],  # R10
-    # Agregá los que necesites
+    ("Parana", "Maria Grande"): ["07:45", "10:15", "16:30"],
+    ("Maria Grande", "Parana"): ["06:45", "14:50", "19:15"],
+    ("Parana", "Tabossi"): ["04:45", "05:35", "08:45", "12:15", "15:30", "17:15", "20:45"],
+    ("Tabossi", "Parana"): ["06:20", "07:15", "08:30", "11:55", "14:40", "18:25"],
 }
 
+# ============================================
+# FUNCIÓN DE EXTRACCIÓN SIMPLE
+# ============================================
+def extraer_origen_destino(mensaje):
+    mensaje = mensaje.lower().strip()
+    print(f"🧹 Mensaje: {mensaje}")
+    
+    if " de " in mensaje and " a " in mensaje:
+        partes = mensaje.split(" de ")
+        resto = partes[1]
+        partes2 = resto.split(" a ")
+        if len(partes2) == 2:
+            origen = partes2[0].strip()
+            destino = partes2[1].strip()
+            return origen.title(), destino.title()
+    return None, None
+
+# ============================================
+# WEBHOOK PRINCIPAL
+# ============================================
 @app.route('/whatsapp', methods=['POST'])
 def whatsapp_reply():
-    msg = request.values.get('Body', '').strip().lower()
-    print(f"Mensaje: {msg}")
+    incoming_msg = request.values.get('Body', '').strip()
+    sender = request.values.get('From', '')
+    
+    print(f"📩 Mensaje de {sender}: {incoming_msg}")
     
     resp = MessagingResponse()
-    r = resp.message()
+    msg = resp.message()
     
-    if msg == "hola":
-        r.body("👋 Bot de transporte. Escribí 'de parana a viale'")
+    if incoming_msg.lower() == "hola":
+        msg.body("👋 Hola, soy el bot de transporte. Escribí por ejemplo: 'De Parana a Viale'")
         return str(resp)
     
-    # Parseo simple
-    if " de " in msg and " a " in msg:
-        partes = msg.split(" de ")[1].split(" a ")
-        if len(partes) == 2:
-            o = partes[0].strip().title()
-            d = partes[1].strip().title()
-            
-            if (o, d) in horarios:
-                hs = "\n".join([f"• {h}" for h in horarios[(o, d)]])
-                r.body(f"🚌 Horarios {o}→{d}:\n{hs}")
-            else:
-                r.body("😕 No tengo horarios para ese tramo")
-            return str(resp)
+    origen, destino = extraer_origen_destino(incoming_msg)
     
-    r.body("🤔 No entendí. Probá 'de parana a viale'")
+    if origen and destino:
+        clave = (origen, destino)
+        if clave in horarios:
+            lista = "\n".join([f"• {h}" for h in horarios[clave]])
+            msg.body(f"🚌 Horarios de {origen} a {destino}:\n{lista}")
+        else:
+            msg.body(f"😕 No tengo horarios de {origen} a {destino}")
+    else:
+        msg.body("🤔 No entendí. Probá con 'De Parana a Viale'")
+    
     return str(resp)
 
+# ============================================
+# INICIO
+# ============================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    
-    # NO USAR app.run() en producción con Gunicorn
-    # En cambio, Gunicorn ya está corriendo el app
-    print(f"🚀 Bot iniciado en puerto {port}")
-    print(f"💡 Para probar local: python bot.py")
-    
-    # Solo para desarrollo local
-    if os.environ.get('RENDER') != 'true':
-        app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port)

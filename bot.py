@@ -5,6 +5,7 @@ import pytz
 import re
 import json
 import os
+import traceback
 
 app = Flask(__name__)
 app.permanent_session_lifetime = timedelta(minutes=3)
@@ -16,7 +17,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN COMPLETA PARA STARTER")
+print("🚀 BOT INICIADO - VERSIÓN CON EXTRACCIÓN SIMPLIFICADA")
 
 # ============================================
 # CONFIGURACIÓN
@@ -276,39 +277,48 @@ def obtener_tramos_por_dia(tipo_dia):
     return tramos_domingos
 
 def extraer_origen_destino(mensaje):
+    """
+    Versión simplificada que solo busca el patrón 'de X a Y' o 'X a Y'
+    """
     mensaje = mensaje.lower().strip()
+    
+    # Eliminar signos de puntuación comunes
     mensaje = re.sub(r'[¿?!¡.,;]', '', mensaje)
     
-    frases = ["cual es el", "podrias decirme", "quiero saber", "decime", "contame", "y el", "el"]
-    for frase in frases:
-        mensaje = mensaje.replace(frase, "")
+    print(f"🧹 Mensaje procesado: '{mensaje}'")
     
-    mensaje = re.sub(r'\s+', ' ', mensaje).strip()
-    print(f"🧹 Mensaje limpio: '{mensaje}'")
-    
-    patron = r'de\s+(.+?)\s+a\s+(.+)'
+    # Buscar patrón "de X a Y"
+    patron = r'de\s+([a-záéíóúñ\s]+?)\s+a\s+([a-záéíóúñ\s]+)'
     match = re.search(patron, mensaje)
+    
     if not match:
-        patron = r'^(.+?)\s+a\s+(.+)$'
+        # Buscar patrón "X a Y" (sin "de")
+        patron = r'^([a-záéíóúñ\s]+?)\s+a\s+([a-záéíóúñ\s]+)$'
         match = re.search(patron, mensaje)
     
     if match:
-        o = match.group(1).strip()
-        d = match.group(2).strip()
+        origen_raw = match.group(1).strip()
+        destino_raw = match.group(2).strip()
         
-        # Limpiar palabras temporales
-        for palabra in ["mañana", "manana", "hoy", "para", "el", "la", "del"]:
-            d = d.replace(palabra, "").strip()
-        
-        # Normalizar localidades
-        loc_map = {
-            "parana": "Parana", "viale": "Viale", "tabossi": "Tabossi",
-            "sosa": "Sosa", "maria grande": "Maria Grande",
-            "aldea san antonio": "Aldea San Antonio", "san antonio": "Aldea San Antonio"
+        # Mapeo de localidades
+        localidades = {
+            "parana": "Parana",
+            "viale": "Viale",
+            "tabossi": "Tabossi",
+            "sosa": "Sosa",
+            "maria grande": "Maria Grande",
+            "aldea san antonio": "Aldea San Antonio",
+            "san antonio": "Aldea San Antonio"
         }
         
-        origen = next((v for k,v in loc_map.items() if k in o), None)
-        destino = next((v for k,v in loc_map.items() if k in d), None)
+        origen = None
+        destino = None
+        
+        for key, value in localidades.items():
+            if key in origen_raw:
+                origen = value
+            if key in destino_raw:
+                destino = value
         
         if origen and destino:
             print(f"✅ Extraído: {origen} -> {destino}")
@@ -360,38 +370,41 @@ def buscar_servicios_por_ruta(origen, destino, tipo_dia, hora_limite=None):
     tramos = obtener_tramos_por_dia(tipo_dia)
     resultados = {"R10": [], "R18": []}
     
-    # Buscar tramos directos
+    # Buscar servicios que terminan en el destino
     for t in tramos:
-        if t["origen"] == origen and t["destino"] == destino:
-            hora_min = hora_a_minutos(t["hora_salida"])
-            if hora_limite is None or hora_min >= hora_limite:
-                resultados[t["ruta"]].append(t["hora_salida"])
+        if t["destino"] == destino:
+            # Encontrar la hora de salida desde el origen
+            hora_origen = None
+            es_r10 = False
+            for t2 in tramos:
+                if t2["origen"] == origen and t2["hora_salida"] <= t["hora_salida"]:
+                    # Verificar si este tramo lleva al destino
+                    hora_origen = t2["hora_salida"]
+                    if t2.get("ruta") == "R10":
+                        es_r10 = True
+                    break
+            
+            if hora_origen:
+                hora_min = hora_a_minutos(hora_origen)
+                if hora_limite is None or hora_min >= hora_limite:
+                    if es_r10:
+                        if hora_origen not in resultados["R10"]:
+                            resultados["R10"].append(hora_origen)
+                    else:
+                        if hora_origen not in resultados["R18"]:
+                            resultados["R18"].append(hora_origen)
     
-    # Buscar servicios con múltiples tramos
-    servicios = {}
-    for t in tramos:
-        if t["origen"] == origen:
-            if t["hora_salida"] not in servicios:
-                servicios[t["hora_salida"]] = []
-            servicios[t["hora_salida"]].append(t)
-    
-    for hora, tramos_servicio in servicios.items():
-        destinos = [t["destino"] for t in tramos_servicio]
-        if destino in destinos:
-            hora_min = hora_a_minutos(hora)
-            if hora_limite is None or hora_min >= hora_limite:
-                if any(t.get("ruta") == "R10" for t in tramos_servicio):
-                    if hora not in resultados["R10"]:
-                        resultados["R10"].append(hora)
-                else:
-                    if hora not in resultados["R18"]:
-                        resultados["R18"].append(hora)
-    
+    # Ordenar resultados
     for r in resultados:
         resultados[r].sort(key=hora_a_minutos)
     
     print(f"  → R10: {len(resultados['R10'])} servicios")
+    for h in resultados['R10']:
+        print(f"    → {h}")
     print(f"  → R18: {len(resultados['R18'])} servicios")
+    for h in resultados['R18']:
+        print(f"    → {h}")
+    
     return resultados
 
 def primer_colectivo(origen, destino, tipo_dia):
@@ -516,112 +529,104 @@ def responder_pregunta_frecuente(mensaje):
 
 @app.route('/whatsapp', methods=['POST'])
 def whatsapp_reply():
-    incoming_msg = request.values.get('Body', '').strip()
-    sender = request.values.get('From', '')
-    
-    print(f"\n📩 Mensaje: '{incoming_msg}' de {sender}")
-    
-    resp = MessagingResponse()
-    msg = resp.message()
-    
-    registrar_interaccion(sender, incoming_msg)
-    
-    if sender not in session:
-        session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
-    
-    ctx = session[sender]
-    
-    # Comando dueño
-    if incoming_msg.lower() == "/estadisticas" and sender == NUMERO_DUENIO:
-        res = obtener_resumen_estadisticas()
-        msg.body(f"📊 Estadísticas\n👥 Usuarios: {res['total_usuarios']}\n💬 Mensajes: {res['total_mensajes']}\n📅 Hoy: {res['usuarios_hoy']}\n📆 Semana: {res['usuarios_semana']}")
-        return str(resp)
-    
-    # Despedida
-    if any(p in incoming_msg.lower() for p in ["chau", "adiós", "adios", "bye"]):
-        resetear_contexto(sender)
-        msg.body(despedida())
-        return str(resp)
-    if "gracias" in incoming_msg.lower():
-        resetear_contexto(sender)
-        msg.body(despedida())
-        return str(resp)
-    if incoming_msg.lower() in ["menu", "reiniciar", "reset"]:
-        resetear_contexto(sender)
-        msg.body(mostrar_menu())
-        return str(resp)
-    
-    # FAQ sueltas
-    faq = responder_pregunta_frecuente(incoming_msg)
-    if faq:
-        msg.body(faq)
-        return str(resp)
-    
-    # Opciones numéricas
-    if incoming_msg == "1":
-        resetear_contexto(sender)
-        ctx["estado"] = "esperando_origen_horarios"
-        msg.body(preguntar_origen_destino("horarios"))
-        return str(resp)
-    if incoming_msg == "2":
-        resetear_contexto(sender)
-        ctx["estado"] = "esperando_origen_precios"
-        msg.body(preguntar_origen_destino("precios"))
-        return str(resp)
-    if incoming_msg == "3":
-        msg.body(mostrar_info_util())
-        return str(resp)
-    if incoming_msg == "4":
-        msg.body(mostrar_faq())
-        return str(resp)
-    
-    # Saludo
-    if incoming_msg.lower() in ["hola", "buenos dias", "buenas tardes", "ayuda"]:
-        msg.body(mostrar_menu())
-        return str(resp)
-    
-    # Procesar según estado
-    if ctx.get("estado") == "esperando_origen_precios":
-        o, d = extraer_origen_destino(incoming_msg)
-        if o and d:
-            precio = obtener_precio(o, d)
-            msg.body(f"💰 El pasaje de {o} a {d} cuesta ${precio}" if precio else f"😕 No tengo precio de {o} a {d}")
-            ctx["ultimo_origen"], ctx["ultimo_destino"] = o, d
-            ctx["estado"] = "menu"
-        else:
-            msg.body("🤔 No entendí. Escribí algo como 'De Viale a Parana'")
-        return str(resp)
-    
-    if ctx.get("estado") == "esperando_origen_horarios":
-        if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "$"]):
-            ctx["estado"] = "esperando_origen_precios"
-            msg.body("📝 Decime de dónde a dónde querés saber el precio")
+    try:
+        incoming_msg = request.values.get('Body', '').strip()
+        sender = request.values.get('From', '')
+        
+        print(f"\n📩 Mensaje: '{incoming_msg}' de {sender}")
+        
+        resp = MessagingResponse()
+        msg = resp.message()
+        
+        registrar_interaccion(sender, incoming_msg)
+        
+        if sender not in session:
+            session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
+        
+        ctx = session[sender]
+        
+        # Comando dueño
+        if incoming_msg.lower() == "/estadisticas" and sender == NUMERO_DUENIO:
+            res = obtener_resumen_estadisticas()
+            msg.body(f"📊 Estadísticas\n👥 Usuarios: {res['total_usuarios']}\n💬 Mensajes: {res['total_mensajes']}\n📅 Hoy: {res['usuarios_hoy']}\n📆 Semana: {res['usuarios_semana']}")
             return str(resp)
         
+        # Despedida
+        if any(p in incoming_msg.lower() for p in ["chau", "adiós", "adios", "bye"]):
+            resetear_contexto(sender)
+            msg.body(despedida())
+            return str(resp)
+        if "gracias" in incoming_msg.lower():
+            resetear_contexto(sender)
+            msg.body(despedida())
+            return str(resp)
+        if incoming_msg.lower() in ["menu", "reiniciar", "reset"]:
+            resetear_contexto(sender)
+            msg.body(mostrar_menu())
+            return str(resp)
+        
+        # FAQ sueltas
+        faq = responder_pregunta_frecuente(incoming_msg)
+        if faq:
+            msg.body(faq)
+            return str(resp)
+        
+        # Opciones numéricas
+        if incoming_msg == "1":
+            resetear_contexto(sender)
+            ctx["estado"] = "esperando_origen_horarios"
+            msg.body(preguntar_origen_destino("horarios"))
+            return str(resp)
+        if incoming_msg == "2":
+            resetear_contexto(sender)
+            ctx["estado"] = "esperando_origen_precios"
+            msg.body(preguntar_origen_destino("precios"))
+            return str(resp)
+        if incoming_msg == "3":
+            msg.body(mostrar_info_util())
+            return str(resp)
+        if incoming_msg == "4":
+            msg.body(mostrar_faq())
+            return str(resp)
+        
+        # Saludo
+        if incoming_msg.lower() in ["hola", "buenos dias", "buenas tardes", "ayuda"]:
+            msg.body(mostrar_menu())
+            return str(resp)
+        
+        # Detectar intención
+        intencion = detectar_intencion(incoming_msg)
+        fecha = interpretar_fecha(incoming_msg)
         o, d = extraer_origen_destino(incoming_msg)
+        
         if o and d:
-            fecha = ctx.get("fecha_pendiente") or interpretar_fecha(incoming_msg)
             tipo = obtener_tipo_dia(fecha)
-            intencion = ctx.get("intencion")
             
-            if intencion == "primer":
+            if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "$"]):
+                precio = obtener_precio(o, d)
+                msg.body(f"💰 El pasaje de {o} a {d} cuesta ${precio}" if precio else f"😕 No tengo precio de {o} a {d}")
+            
+            elif intencion == "primer":
                 res = primer_colectivo(o, d, tipo)
                 if res:
                     msg.body(f"🚌 El primer colectivo de {o} a {d} para {fecha.strftime('%d/%m/%Y')} sale a las {res[0]} por {res[1]}")
                 else:
                     msg.body(f"😕 No hay servicios de {o} a {d} para esa fecha")
+            
             elif intencion == "proximo":
                 res = proximo_colectivo(o, d, tipo)
                 if res:
                     msg.body(f"🚌 El próximo colectivo de {o} a {d} sale a las {res[0]} por {res[1]}")
                 else:
                     msg.body(f"😕 No hay más servicios de {o} a {d} hoy")
+            
             elif intencion == "ultimo":
                 res = ultimo_colectivo(o, d, tipo)
                 if res:
                     msg.body(f"🚌 El último colectivo de {o} a {d} sale a las {res[0]} por {res[1]}")
                 else:
                     msg.body(f"😕 No hay servicios de {o} a {d} hoy")
+            
             else:
                 hora_limite = extraer_hora_limite(incoming_msg)
                 resultados = buscar_servicios_por_ruta(o, d, tipo, hora_limite)
@@ -629,111 +634,72 @@ def whatsapp_reply():
                 msg.body(formatear_horarios(resultados, o, d, fecha_str))
             
             ctx["ultimo_origen"], ctx["ultimo_destino"] = o, d
-            ctx["estado"] = "menu"
-            ctx["intencion"] = None
-            ctx["fecha_pendiente"] = None
-        else:
-            msg.body("🤔 No entendí. Escribí algo como 'De Viale a Parana'")
+            ctx["fecha_pendiente"] = fecha
+            return str(resp)
+        
+        # Intención sin origen/destino
+        if intencion and not o:
+            if ctx.get("fecha_pendiente"):
+                fecha = ctx["fecha_pendiente"]
+            ctx["estado"] = "esperando_origen_horarios"
+            ctx["intencion"] = intencion
+            ctx["fecha_pendiente"] = fecha
+            msg.body("📝 Decime de dónde a dónde querés viajar")
+            return str(resp)
+        
+        # Consulta sin contexto
+        if not ctx["ultimo_origen"]:
+            if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "próximo", "proximo", "último", "ultimo", "primer"]):
+                msg.body("📝 Primero decime de dónde a dónde querés viajar. Ej: 'De Viale a Parana'")
+                return str(resp)
+        
+        # Seguimiento con contexto
+        if ctx["ultimo_origen"] and ctx["ultimo_destino"]:
+            o, d = ctx["ultimo_origen"], ctx["ultimo_destino"]
+            tipo = obtener_tipo_dia(ahora_argentina())
+            
+            if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "$"]):
+                precio = obtener_precio(o, d)
+                msg.body(f"💰 El pasaje de {o} a {d} cuesta ${precio}" if precio else f"😕 No tengo precio de {o} a {d}")
+                return str(resp)
+            
+            if any(p in incoming_msg.lower() for p in ["primer", "primero"]):
+                res = primer_colectivo(o, d, tipo)
+                if res:
+                    msg.body(f"🚌 El primer colectivo de {o} a {d} sale a las {res[0]} por {res[1]}")
+                else:
+                    msg.body(f"😕 No hay servicios de {o} a {d} hoy")
+                return str(resp)
+            
+            if any(p in incoming_msg.lower() for p in ["próximo", "proximo", "siguiente"]):
+                res = proximo_colectivo(o, d, tipo)
+                if res:
+                    msg.body(f"🚌 El próximo colectivo de {o} a {d} sale a las {res[0]} por {res[1]}")
+                else:
+                    msg.body(f"😕 No hay más servicios de {o} a {d} hoy")
+                return str(resp)
+            
+            if any(p in incoming_msg.lower() for p in ["último", "ultimo", "final"]):
+                res = ultimo_colectivo(o, d, tipo)
+                if res:
+                    msg.body(f"🚌 El último colectivo de {o} a {d} sale a las {res[0]} por {res[1]}")
+                else:
+                    msg.body(f"😕 No hay servicios de {o} a {d} hoy")
+                return str(resp)
+        
+        # No entendido
+        msg.body(no_entendido())
         return str(resp)
     
-    # Consulta directa
-    intencion = detectar_intencion(incoming_msg)
-    fecha = interpretar_fecha(incoming_msg)
-    o, d = extraer_origen_destino(incoming_msg)
-    
-    if o and d:
-        tipo = obtener_tipo_dia(fecha)
-        
-        if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "$"]):
-            precio = obtener_precio(o, d)
-            msg.body(f"💰 El pasaje de {o} a {d} cuesta ${precio}" if precio else f"😕 No tengo precio de {o} a {d}")
-        
-        elif intencion == "primer":
-            res = primer_colectivo(o, d, tipo)
-            if res:
-                msg.body(f"🚌 El primer colectivo de {o} a {d} para {fecha.strftime('%d/%m/%Y')} sale a las {res[0]} por {res[1]}")
-            else:
-                msg.body(f"😕 No hay servicios de {o} a {d} para esa fecha")
-        
-        elif intencion == "proximo":
-            res = proximo_colectivo(o, d, tipo)
-            if res:
-                msg.body(f"🚌 El próximo colectivo de {o} a {d} sale a las {res[0]} por {res[1]}")
-            else:
-                msg.body(f"😕 No hay más servicios de {o} a {d} hoy")
-        
-        elif intencion == "ultimo":
-            res = ultimo_colectivo(o, d, tipo)
-            if res:
-                msg.body(f"🚌 El último colectivo de {o} a {d} sale a las {res[0]} por {res[1]}")
-            else:
-                msg.body(f"😕 No hay servicios de {o} a {d} hoy")
-        
-        else:
-            hora_limite = extraer_hora_limite(incoming_msg)
-            resultados = buscar_servicios_por_ruta(o, d, tipo, hora_limite)
-            fecha_str = fecha.strftime("%d/%m/%Y")
-            msg.body(formatear_horarios(resultados, o, d, fecha_str))
-        
-        ctx["ultimo_origen"], ctx["ultimo_destino"] = o, d
-        ctx["fecha_pendiente"] = fecha
+    except Exception as e:
+        print(f"❌ ERROR CRÍTICO: {e}")
+        traceback.print_exc()
+        resp = MessagingResponse()
+        msg = resp.message()
+        msg.body("⚠️ Ocurrió un error interno. Por favor, intentá de nuevo más tarde.")
         return str(resp)
-    
-    # Intención sin origen/destino
-    if intencion and not o:
-        if ctx.get("fecha_pendiente"):
-            fecha = ctx["fecha_pendiente"]
-        ctx["estado"] = "esperando_origen_horarios"
-        ctx["intencion"] = intencion
-        ctx["fecha_pendiente"] = fecha
-        msg.body("📝 Decime de dónde a dónde querés viajar")
-        return str(resp)
-    
-    # Consulta sin contexto
-    if not ctx["ultimo_origen"]:
-        if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "próximo", "proximo", "último", "ultimo", "primer"]):
-            msg.body("📝 Primero decime de dónde a dónde querés viajar. Ej: 'De Viale a Parana'")
-            return str(resp)
-    
-    # Seguimiento con contexto
-    if ctx["ultimo_origen"] and ctx["ultimo_destino"]:
-        o, d = ctx["ultimo_origen"], ctx["ultimo_destino"]
-        tipo = obtener_tipo_dia(ahora_argentina())
-        
-        if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "$"]):
-            precio = obtener_precio(o, d)
-            msg.body(f"💰 El pasaje de {o} a {d} cuesta ${precio}" if precio else f"😕 No tengo precio de {o} a {d}")
-            return str(resp)
-        
-        if any(p in incoming_msg.lower() for p in ["primer", "primero"]):
-            res = primer_colectivo(o, d, tipo)
-            if res:
-                msg.body(f"🚌 El primer colectivo de {o} a {d} sale a las {res[0]} por {res[1]}")
-            else:
-                msg.body(f"😕 No hay servicios de {o} a {d} hoy")
-            return str(resp)
-        
-        if any(p in incoming_msg.lower() for p in ["próximo", "proximo", "siguiente"]):
-            res = proximo_colectivo(o, d, tipo)
-            if res:
-                msg.body(f"🚌 El próximo colectivo de {o} a {d} sale a las {res[0]} por {res[1]}")
-            else:
-                msg.body(f"😕 No hay más servicios de {o} a {d} hoy")
-            return str(resp)
-        
-        if any(p in incoming_msg.lower() for p in ["último", "ultimo", "final"]):
-            res = ultimo_colectivo(o, d, tipo)
-            if res:
-                msg.body(f"🚌 El último colectivo de {o} a {d} sale a las {res[0]} por {res[1]}")
-            else:
-                msg.body(f"😕 No hay servicios de {o} a {d} hoy")
-            return str(resp)
-    
-    # No entendido
-    msg.body(no_entendido())
-    return str(resp)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     print(f"🚀 Iniciando bot en puerto {port}")
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=True)

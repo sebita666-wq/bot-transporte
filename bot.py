@@ -46,4 +46,12 @@ def whatsapp_reply():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    
+    # NO USAR app.run() en producción con Gunicorn
+    # En cambio, Gunicorn ya está corriendo el app
+    print(f"🚀 Bot iniciado en puerto {port}")
+    print(f"💡 Para probar local: python bot.py")
+    
+    # Solo para desarrollo local
+    if os.environ.get('RENDER') != 'true':
+        app.run(host='0.0.0.0', port=port, debug=True)

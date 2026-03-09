@@ -19,18 +19,32 @@ horarios = {
 # ============================================
 # FUNCIÓN DE EXTRACCIÓN SIMPLE
 # ============================================
+
 def extraer_origen_destino(mensaje):
     mensaje = mensaje.lower().strip()
     print(f"🧹 Mensaje: {mensaje}")
     
-    if " de " in mensaje and " a " in mensaje:
-        partes = mensaje.split(" de ")
-        resto = partes[1]
-        partes2 = resto.split(" a ")
-        if len(partes2) == 2:
-            origen = partes2[0].strip()
-            destino = partes2[1].strip()
-            return origen.title(), destino.title()
+    # Caso 1: "de x a y" (con o sin espacio adelante)
+    if "de " in mensaje and " a " in mensaje:
+        partes = mensaje.split("de ", 1)
+        if len(partes) > 1:
+            resto = partes[1]
+            partes2 = resto.split(" a ")
+            if len(partes2) == 2:
+                origen = partes2[0].strip()
+                destino = partes2[1].strip()
+                return origen.title(), destino.title()
+    
+    # Caso 2: "x a y" (sin "de")
+    if " a " in mensaje:
+        partes = mensaje.split(" a ")
+        if len(partes) == 2:
+            origen = partes[0].strip()
+            destino = partes[1].strip()
+            # Verificar que no sea parte de otra frase
+            if origen and destino:
+                return origen.title(), destino.title()
+    
     return None, None
 
 # ============================================

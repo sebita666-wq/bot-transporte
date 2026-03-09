@@ -16,7 +16,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - CHECKPOINT 6 (SEGUIMIENTO DE FECHA CORREGIDO)")
+print("🚀 BOT INICIADO - CHECKPOINT 7 (PRECIOS ACTUALIZADOS + SEGUIMIENTO CORREGIDO)")
 
 # ============================================
 # CONFIGURACIÓN (VERSIÓN PRODUCCIÓN)
@@ -352,7 +352,7 @@ tramos_domingos = [
 ]
 
 # ============================================
-# TABLA DE PRECIOS
+# TABLA DE PRECIOS (ACTUALIZADA)
 # ============================================
 
 precios = {
@@ -852,6 +852,15 @@ def whatsapp_reply():
     
     if contexto.get("estado") == "esperando_origen_horarios":
         print("🔍 Procesando respuesta para HORARIOS...")
+        
+        # ANTES de procesar, verificamos si el mensaje es sobre PRECIO
+        if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "vale", "$"]):
+            print("  → El mensaje es de PRECIO, cambiando a estado esperando_origen_precios")
+            contexto["estado"] = "esperando_origen_precios"
+            session[sender] = contexto
+            msg.body("📝 Decime de dónde a dónde querés saber el precio.")
+            return str(resp)
+        
         origen, destino = extraer_origen_destino(incoming_msg)
         if origen and destino:
             fecha = contexto.get("fecha_pendiente") or interpretar_fecha(incoming_msg)
@@ -926,7 +935,7 @@ def whatsapp_reply():
                 msg.body(f"😕 No tengo precio de {origen} a {destino}.")
             contexto["ultimo_origen"] = origen
             contexto["ultimo_destino"] = destino
-            contexto["fecha_pendiente"] = fecha  # 👈 GUARDAMOS FECHA PARA SEGUIMIENTO
+            contexto["fecha_pendiente"] = fecha
             session[sender] = contexto
             return str(resp)
         
@@ -940,7 +949,7 @@ def whatsapp_reply():
                 msg.body(f"😕 No hay servicios de {origen} a {destino} para esa fecha.")
             contexto["ultimo_origen"] = origen
             contexto["ultimo_destino"] = destino
-            contexto["fecha_pendiente"] = fecha  # 👈 GUARDAMOS FECHA PARA SEGUIMIENTO
+            contexto["fecha_pendiente"] = fecha
             session[sender] = contexto
             return str(resp)
         
@@ -953,7 +962,7 @@ def whatsapp_reply():
                 msg.body(f"😕 No hay más servicios de {origen} a {destino} hoy.")
             contexto["ultimo_origen"] = origen
             contexto["ultimo_destino"] = destino
-            contexto["fecha_pendiente"] = fecha  # 👈 GUARDAMOS FECHA PARA SEGUIMIENTO
+            contexto["fecha_pendiente"] = fecha
             session[sender] = contexto
             return str(resp)
         
@@ -966,7 +975,7 @@ def whatsapp_reply():
                 msg.body(f"😕 No hay servicios de {origen} a {destino} hoy.")
             contexto["ultimo_origen"] = origen
             contexto["ultimo_destino"] = destino
-            contexto["fecha_pendiente"] = fecha  # 👈 GUARDAMOS FECHA PARA SEGUIMIENTO
+            contexto["fecha_pendiente"] = fecha
             session[sender] = contexto
             return str(resp)
         

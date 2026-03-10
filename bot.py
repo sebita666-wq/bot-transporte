@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN COMPLETA (SOSA, SÁBADOS, DOMINGOS)")
+print("🚀 BOT INICIADO - VERSIÓN COMPLETA CORREGIDA")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -276,18 +276,54 @@ def extraer_origen_destino(mensaje):
     m = mensaje.lower().strip()
     print(f"🔍 EXTRAYENDO de: '{m}'")
     
-    # Eliminar signos de puntuación comunes
+    # Eliminar signos de puntuación
     m = re.sub(r'[¿?!¡.,;:]', '', m)
     
-    # Caso: "de x a y"
+    # Lista de palabras a ignorar después del destino
+    palabras_ignorar = ["proximo", "próximo", "siguiente", "ultimo", "último", "final", "primer", "primero", "el", "la", "los", "las"]
+    
+    # ============================================
+    # CASO 1: "de X a Y ..."
+    # ============================================
     if "de " in m and " a " in m:
         partes = m.split("de ", 1)
         resto = partes[1]
-        partes2 = resto.split(" a ")
+        partes2 = resto.split(" a ", 1)
         if len(partes2) == 2:
             origen = partes2[0].strip()
-            destino = partes2[1].strip()
-            print(f"  → Posible origen: '{origen}', destino: '{destino}'")
+            destino_raw = partes2[1].strip()
+            
+            # Limpiar palabras extras del destino
+            destino = destino_raw
+            for palabra in palabras_ignorar:
+                if palabra in destino:
+                    destino = destino.split(palabra)[0].strip()
+                    break
+            
+            print(f"  → Posible origen: '{origen}', destino: '{destino}' (raw: '{destino_raw}')")
+            
+            localidades = ["parana", "viale", "tabossi", "sosa", "maria grande", "aldea san antonio"]
+            if origen in localidades and destino in localidades:
+                print(f"✅ EXTRAÍDO: {origen.title()} -> {destino.title()}")
+                return origen.title(), destino.title()
+    
+    # ============================================
+    # CASO 2: "X a Y ..." (sin "de")
+    # ============================================
+    if " a " in m:
+        partes = m.split(" a ", 1)
+        if len(partes) == 2:
+            origen = partes[0].strip()
+            destino_raw = partes[1].strip()
+            
+            # Limpiar palabras extras del destino
+            destino = destino_raw
+            for palabra in palabras_ignorar:
+                if palabra in destino:
+                    destino = destino.split(palabra)[0].strip()
+                    break
+            
+            print(f"  → Posible origen: '{origen}', destino: '{destino}' (raw: '{destino_raw}')")
             
             localidades = ["parana", "viale", "tabossi", "sosa", "maria grande", "aldea san antonio"]
             if origen in localidades and destino in localidades:

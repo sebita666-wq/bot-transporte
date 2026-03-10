@@ -279,8 +279,8 @@ def extraer_origen_destino(mensaje):
     # Eliminar signos de puntuación
     m = re.sub(r'[¿?!¡.,;:]', '', m)
     
-    # Lista de palabras a ignorar después del destino
-    palabras_ignorar = ["proximo", "próximo", "siguiente", "ultimo", "último", "final", "primer", "primero", "el", "la", "los", "las"]
+    # Lista de localidades válidas
+    localidades = ["parana", "viale", "tabossi", "sosa", "maria grande", "aldea san antonio"]
     
     # ============================================
     # CASO 1: "de X a Y ..."
@@ -291,21 +291,36 @@ def extraer_origen_destino(mensaje):
         partes2 = resto.split(" a ", 1)
         if len(partes2) == 2:
             origen = partes2[0].strip()
-            destino_raw = partes2[1].strip()
+            resto_destino = partes2[1].strip()
             
-            # Limpiar palabras extras del destino
-            destino = destino_raw
-            for palabra in palabras_ignorar:
-                if palabra in destino:
-                    destino = destino.split(palabra)[0].strip()
+            print(f"  → Posible origen: '{origen}', resto destino: '{resto_destino}'")
+            
+            if origen not in localidades:
+                print(f"  → Origen '{origen}' no es válido")
+                return None, None
+            
+            # Buscar el destino real dentro del resto
+            # El destino es la primera palabra (o par de palabras) que coincida con localidades
+            palabras = resto_destino.split()
+            destino_encontrado = None
+            resto_final = resto_destino
+            
+            # Probar combinaciones de 1 o 2 palabras para el destino
+            for i in range(1, min(3, len(palabras) + 1)):
+                posible_destino = " ".join(palabras[:i])
+                if posible_destino in localidades:
+                    destino_encontrado = posible_destino
+                    resto_final = " ".join(palabras[i:])
                     break
             
-            print(f"  → Posible origen: '{origen}', destino: '{destino}' (raw: '{destino_raw}')")
-            
-            localidades = ["parana", "viale", "tabossi", "sosa", "maria grande", "aldea san antonio"]
-            if origen in localidades and destino in localidades:
-                print(f"✅ EXTRAÍDO: {origen.title()} -> {destino.title()}")
-                return origen.title(), destino.title()
+            if destino_encontrado:
+                print(f"  → Destino encontrado: '{destino_encontrado}', resto: '{resto_final}'")
+                
+                # Guardar el resto para posible extracción de hora límite
+                # (se puede usar después con extraer_hora_limite)
+                
+                print(f"✅ EXTRAÍDO: {origen.title()} -> {destino_encontrado.title()}")
+                return origen.title(), destino_encontrado.title()
     
     # ============================================
     # CASO 2: "X a Y ..." (sin "de")
@@ -314,21 +329,28 @@ def extraer_origen_destino(mensaje):
         partes = m.split(" a ", 1)
         if len(partes) == 2:
             origen = partes[0].strip()
-            destino_raw = partes[1].strip()
+            resto_destino = partes[1].strip()
             
-            # Limpiar palabras extras del destino
-            destino = destino_raw
-            for palabra in palabras_ignorar:
-                if palabra in destino:
-                    destino = destino.split(palabra)[0].strip()
+            print(f"  → Posible origen: '{origen}', resto destino: '{resto_destino}'")
+            
+            if origen not in localidades:
+                print(f"  → Origen '{origen}' no es válido")
+                return None, None
+            
+            # Buscar el destino real dentro del resto
+            palabras = resto_destino.split()
+            destino_encontrado = None
+            
+            for i in range(1, min(3, len(palabras) + 1)):
+                posible_destino = " ".join(palabras[:i])
+                if posible_destino in localidades:
+                    destino_encontrado = posible_destino
                     break
             
-            print(f"  → Posible origen: '{origen}', destino: '{destino}' (raw: '{destino_raw}')")
-            
-            localidades = ["parana", "viale", "tabossi", "sosa", "maria grande", "aldea san antonio"]
-            if origen in localidades and destino in localidades:
-                print(f"✅ EXTRAÍDO: {origen.title()} -> {destino.title()}")
-                return origen.title(), destino.title()
+            if destino_encontrado:
+                print(f"  → Destino encontrado: '{destino_encontrado}'")
+                print(f"✅ EXTRAÍDO: {origen.title()} -> {destino_encontrado.title()}")
+                return origen.title(), destino_encontrado.title()
     
     print("❌ No se pudo extraer")
     return None, None
@@ -403,8 +425,33 @@ def obtener_precio(o, d):
 # ============================================
 # PREGUNTAS FRECUENTES
 # ============================================
+
 def responder_faq(mensaje):
     m = mensaje.lower()
+    
+    # ============================================
+    # NUEVO: GUÍA DE USO DEL BOT
+    # ============================================
+    if any(p in m for p in ["como usar", "cómo usar", "ayuda", "funciona", "tutorial", "guía", "que puedo preguntar", "que preguntar"]):
+        return ("📱 *Guía rápida del bot*\n\n"
+                "✅ *Frases que funcionan:*\n"
+                "• 'De Parana a Viale'\n"
+                "• 'Parana a Viale'\n"
+                "• 'Precio de Parana a Viale'\n"
+                "• 'Primer colectivo de Parana a Viale'\n"
+                "• 'Próximo de Viale a Parana'\n"
+                "• 'Último de Parana a Maria Grande'\n"
+                "• 'Después de las 17'\n\n"
+                "❌ *Frases que NO funcionan:*\n"
+                "• 'Parana Viale' (sin 'a')\n"
+                "• 'De Parana a Buenos Aires' (localidad no válida)\n"
+                "• 'Quiero ir a Viale' (falta origen)\n"
+                "• 'Primero' (sin contexto)\n\n"
+                "💡 *Siempre usá el formato 'De X a Y'*")
+    
+    # ============================================
+    # FAQ EXISTENTE
+    # ============================================
     if any(p in m for p in ["pago", "pagar", "sube", "tarjeta", "qr", "mercadopago", "debito", "credito"]):
         return ("💳 *Medios de pago*\n\n"
                 "A partir de Febrero de 2026, el único medio de pago disponible es a través de la **red SUBE**.\n"
@@ -413,43 +460,51 @@ def responder_faq(mensaje):
                 "• Tarjeta de débito o crédito\n"
                 "• Mercado Pago QR\n\n"
                 "Todos los pagos se realizan en la terminal antes de subir.")
+    
     if any(p in m for p in ["equipaje", "valija", "bulto", "maleta"]):
         return ("🧳 *Límite de equipaje*\n\n"
                 "Podés llevar hasta **2 bultos por persona** con un peso máximo total de **10 kg**.\n"
                 "Si necesitás llevar más, consultanos con anticipación para evaluar disponibilidad en bodega.")
+    
     if any(p in m for p in ["mascota", "perro", "gato", "animal"]):
         return ("🐕 *Mascotas a bordo*\n\n"
                 "• Mascotas pequeñas viajan **en jaula o bolso transportador**, únicamente en **bodega** (por disposición de Transporte Provincial).\n"
                 "• **Perros de asistencia** viajan sin restricciones.\n"
                 "• No se permiten mascotas sueltas en el interior del colectivo.")
+    
     if any(p in m for p in ["perdi", "objeto", "olvide", "cartera", "celular", "llaves"]):
         return ("📞 *Objetos perdidos*\n\n"
                 "Si perdiste algo en un colectivo, comunicate al 📱 **343 456-7890** o acercate a nuestra empresa en:\n"
                 "📍 **Guetto de Varsovia 211, Paraná** (Empresa Grupo ERSA)\n\n"
                 "Tené a mano el día y horario del viaje para ayudarte a ubicarlo.")
+    
     if any(p in m for p in ["descuento", "estudiante", "jubilado", "beneficio"]):
         return ("👨‍🎓 *Descuentos*\n\n"
                 "El descuento lo aplica directamente el **sistema SUBE**.\n"
                 "Nosotros no podemos gestionar ningún tipo de descuento. Solo aquellas personas que tengan el beneficio activado en su tarjeta SUBE podrán acceder a la tarifa reducida.")
+    
     if any(p in m for p in ["niño", "nene", "bebe", "menor"]):
         return ("👶 *Menores*\n\n"
                 "• **Menores de 5 años** que viajen en el regazo de un adulto abonan un **seguro mínimo**.\n"
                 "• **A partir de los 5 años**, deben pagar pasaje completo.")
+    
     if any(p in m for p in ["asiento", "sentarme", "lugar", "elegir"]):
         return ("🪑 *Asignación de asientos*\n\n"
                 "La asignación de asientos es **por orden de llegada**.\n"
                 "Si necesitás un lugar especial (ej. cerca de la puerta por movilidad reducida), avisale al chofer al subir.")
+    
     if any(p in m for p in ["reclamo", "problema", "queja", "sugerencia"]):
         return ("🚌 *Reclamos y sugerencias*\n\n"
                 "Podés acercarte a cualquiera de nuestras terminales o escribirnos a este mismo WhatsApp.\n"
                 "Tu opinión nos ayuda a mejorar.")
+    
     return None
 
 # ============================================
 # FUNCIONES DE RESPUESTA
 # ============================================
 def mostrar_menu():
-    return ("👋 Hola, soy el asistente de transporte.\n\n"
+    return ("👋 Hola, soy el asistente de la empresa Fluviales.\n\n"
             "Elegí una opción o escribí directamente:\n"
             "1️⃣ Ver horarios\n"
             "2️⃣ Consultar precios\n"

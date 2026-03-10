@@ -434,6 +434,12 @@ def responder_faq(mensaje):
     # ============================================
     if any(p in m for p in ["como usar", "cómo usar", "ayuda", "funciona", "tutorial", "guía", "que puedo preguntar", "que preguntar"]):
         return ("📱 *Guía rápida del bot*\n\n"
+                "🌎 *Localidades Disponibles:*\n"
+                "• Parana\n"
+                "• Viale\n"
+                "• Tabossi\n"
+                "• Sosa\n"
+                "• Maria Grande\n\n"
                 "✅ *Frases que funcionan:*\n"
                 "• 'De Parana a Viale'\n"
                 "• 'Parana a Viale'\n"

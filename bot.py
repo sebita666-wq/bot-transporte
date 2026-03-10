@@ -505,12 +505,13 @@ def responder_faq(mensaje):
 # ============================================
 def mostrar_menu():
     return ("👋 Hola, soy el asistente de la empresa Fluviales.\n\n"
-            "Elegí una opción o escribí directamente:\n"
+            "Elegí una opción o escribí directamente:\n\n"
             "1️⃣ Ver horarios\n"
             "2️⃣ Consultar precios\n"
             "3️⃣ Información útil\n"
             "4️⃣ Preguntas frecuentes\n\n"
-            "Ej: 'De Parana a Viale', 'Precio de Parana a Viale'")
+            "Ej: 'De Parana a Viale', 'Precio de Parana a Viale'\n\n"
+            "Escribe 'Ayuda' para saber como funciona el bot.")
 
 def preguntar_origen_destino(tipo):
     return f"📝 Decime de dónde a dónde querés viajar (ej: De Viale a Parana)"

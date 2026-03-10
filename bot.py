@@ -279,78 +279,81 @@ def extraer_origen_destino(mensaje):
     # Eliminar signos de puntuación
     m = re.sub(r'[¿?!¡.,;:]', '', m)
     
-    # Lista de localidades válidas
-    localidades = ["parana", "viale", "tabossi", "sosa", "maria grande", "aldea san antonio"]
+    # Lista de localidades válidas (incluye variantes de aldea)
+    localidades = [
+        "parana", 
+        "viale", 
+        "tabossi", 
+        "sosa", 
+        "maria grande", 
+        "aldea san antonio",
+        "san antonio"  # por si escriben solo "san antonio"
+    ]
     
     # ============================================
     # CASO 1: "de X a Y ..."
     # ============================================
     if "de " in m and " a " in m:
-        partes = m.split("de ", 1)
-        resto = partes[1]
-        partes2 = resto.split(" a ", 1)
-        if len(partes2) == 2:
-            origen = partes2[0].strip()
-            resto_destino = partes2[1].strip()
+        # Buscar la primera aparición de "de " y " a "
+        idx_de = m.find("de ")
+        idx_a = m.find(" a ", idx_de + 3)
+        
+        if idx_de != -1 and idx_a != -1:
+            origen = m[idx_de + 3:idx_a].strip()
+            resto_destino = m[idx_a + 3:].strip()
             
             print(f"  → Posible origen: '{origen}', resto destino: '{resto_destino}'")
             
             if origen not in localidades:
                 print(f"  → Origen '{origen}' no es válido")
-                return None, None
-            
-            # Buscar el destino real dentro del resto
-            # El destino es la primera palabra (o par de palabras) que coincida con localidades
-            palabras = resto_destino.split()
-            destino_encontrado = None
-            resto_final = resto_destino
-            
-            # Probar combinaciones de 1 o 2 palabras para el destino
-            for i in range(1, min(3, len(palabras) + 1)):
-                posible_destino = " ".join(palabras[:i])
-                if posible_destino in localidades:
-                    destino_encontrado = posible_destino
-                    resto_final = " ".join(palabras[i:])
-                    break
-            
-            if destino_encontrado:
-                print(f"  → Destino encontrado: '{destino_encontrado}', resto: '{resto_final}'")
+            else:
+                # Buscar el destino real dentro del resto
+                # Primero intentar con frases completas
+                for loc in localidades:
+                    if resto_destino.startswith(loc):
+                        destino = loc
+                        print(f"  → Destino encontrado: '{destino}'")
+                        print(f"✅ EXTRAÍDO: {origen.title()} -> {destino.title()}")
+                        return origen.title(), destino.title()
                 
-                # Guardar el resto para posible extracción de hora límite
-                # (se puede usar después con extraer_hora_limite)
-                
-                print(f"✅ EXTRAÍDO: {origen.title()} -> {destino_encontrado.title()}")
-                return origen.title(), destino_encontrado.title()
+                # Si no, probar palabra por palabra
+                palabras = resto_destino.split()
+                for i in range(1, min(4, len(palabras) + 1)):
+                    posible = " ".join(palabras[:i])
+                    if posible in localidades:
+                        print(f"  → Destino encontrado: '{posible}'")
+                        print(f"✅ EXTRAÍDO: {origen.title()} -> {posible.title()}")
+                        return origen.title(), posible.title()
     
     # ============================================
     # CASO 2: "X a Y ..." (sin "de")
     # ============================================
     if " a " in m:
-        partes = m.split(" a ", 1)
-        if len(partes) == 2:
-            origen = partes[0].strip()
-            resto_destino = partes[1].strip()
+        idx_a = m.find(" a ")
+        if idx_a != -1:
+            origen = m[:idx_a].strip()
+            resto_destino = m[idx_a + 3:].strip()
             
             print(f"  → Posible origen: '{origen}', resto destino: '{resto_destino}'")
             
             if origen not in localidades:
                 print(f"  → Origen '{origen}' no es válido")
-                return None, None
-            
-            # Buscar el destino real dentro del resto
-            palabras = resto_destino.split()
-            destino_encontrado = None
-            
-            for i in range(1, min(3, len(palabras) + 1)):
-                posible_destino = " ".join(palabras[:i])
-                if posible_destino in localidades:
-                    destino_encontrado = posible_destino
-                    break
-            
-            if destino_encontrado:
-                print(f"  → Destino encontrado: '{destino_encontrado}'")
-                print(f"✅ EXTRAÍDO: {origen.title()} -> {destino_encontrado.title()}")
-                return origen.title(), destino_encontrado.title()
+            else:
+                # Buscar el destino real dentro del resto
+                for loc in localidades:
+                    if resto_destino.startswith(loc):
+                        destino = loc
+                        print(f"  → Destino encontrado: '{destino}'")
+                        print(f"✅ EXTRAÍDO: {origen.title()} -> {destino.title()}")
+                        return origen.title(), destino.title()
+                
+                palabras = resto_destino.split()
+                for i in range(1, min(4, len(palabras) + 1)):
+                    posible = " ".join(palabras[:i])
+                    if posible in localidades:
+                        print(f"  → Destino encontrado: '{posible}'")
+                        print(f"✅ EXTRAÍDO: {origen.title()} -> {posible.title()}")
+                        return origen.title(), posible.title()
     
     print("❌ No se pudo extraer")
     return None, None

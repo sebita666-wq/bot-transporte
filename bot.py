@@ -137,14 +137,16 @@ def extraer_origen_destino(mensaje):
         print(f"  → Limpiado: '{m}'")
     
     # ============================================
-    # CASO 1: Buscar "de X a Y" (con espacios)
+    # CASO 1: Buscar "de X a Y" (PRIORITARIO)
     # ============================================
-    # Buscar la palabra "de" seguida de algo y luego "a"
     palabras = m.split()
+    
+    # Buscar TODAS las ocurrencias de "de" en el mensaje
     for i in range(len(palabras) - 2):
-        if palabras[i] == "de" and palabras[i+2] == "a":
-            origen = palabras[i+1]
-            destino = " ".join(palabras[i+3:])
+        if palabras[i] == "de" and i + 2 < len(palabras) and palabras[i + 2] == "a":
+            # Encontramos un patrón "de X a"
+            origen = palabras[i + 1]
+            destino = " ".join(palabras[i + 3:])
             
             print(f"  → Encontré 'de' en posición {i}: origen='{origen}', destino='{destino}'")
             
@@ -166,32 +168,35 @@ def extraer_origen_destino(mensaje):
                         return origen_norm, destino_norm
     
     # ============================================
-    # CASO 2: Buscar "X a Y" (sin "de")
+    # CASO 2: Buscar "X a Y" (sin "de") - AHORA MÁS ESTRICTO
     # ============================================
-    if " a " in m:
+    # SOLO si NO encontramos un patrón con "de" antes, y el mensaje NO empieza con "de"
+    if not m.startswith('de ') and " a " in m:
         idx_a = m.find(" a ")
         if idx_a != -1:
             origen = m[:idx_a].strip()
             destino = m[idx_a + 3:].strip()
             
-            print(f"  → Formato simple: origen='{origen}', destino='{destino}'")
-            
-            origen_norm = normalizar_localidad(origen)
-            destino_norm = normalizar_localidad(destino)
-            
-            if origen_norm and destino_norm:
-                print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
-                return origen_norm, destino_norm
-            
-            # Si no encuentra el destino completo, probar palabra por palabra
-            if origen_norm:
-                palabras_destino = destino.split()
-                for j in range(len(palabras_destino), 0, -1):
-                    posible_destino = " ".join(palabras_destino[:j])
-                    destino_norm = normalizar_localidad(posible_destino)
-                    if destino_norm:
-                        print(f"✅ EXTRAÍDO (parcial): {origen_norm} -> {destino_norm}")
-                        return origen_norm, destino_norm
+            # Verificar que el origen NO contenga la palabra "de"
+            if "de" not in origen.split():
+                print(f"  → Formato simple: origen='{origen}', destino='{destino}'")
+                
+                origen_norm = normalizar_localidad(origen)
+                destino_norm = normalizar_localidad(destino)
+                
+                if origen_norm and destino_norm:
+                    print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
+                    return origen_norm, destino_norm
+                
+                # Si no encuentra el destino completo, probar palabra por palabra
+                if origen_norm:
+                    palabras_destino = destino.split()
+                    for j in range(len(palabras_destino), 0, -1):
+                        posible_destino = " ".join(palabras_destino[:j])
+                        destino_norm = normalizar_localidad(posible_destino)
+                        if destino_norm:
+                            print(f"✅ EXTRAÍDO (parcial): {origen_norm} -> {destino_norm}")
+                            return origen_norm, destino_norm
     
     print("❌ No se pudo extraer")
     return None, None

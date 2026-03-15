@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - CHECKPOINT v2.1 (Fix Maria Grande)")
+print("🚀 BOT INICIADO - CHECKPOINT v2.2 (Fix completo: tildes, 'cual es', minúsculas)")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -73,20 +73,130 @@ localidades = [
     { "principal": "Paraná", "alias": ["Parana"] }
 ]
 
+# ============================================
+# FUNCIONES DE NORMALIZACIÓN (CORREGIDAS)
+# ============================================
+
 def normalizar_localidad(texto):
-    """Convierte cualquier alias al nombre principal de la localidad"""
-    texto = texto.lower().strip()
+    """Convierte cualquier texto al nombre principal de la localidad (sin tildes)"""
+    if not texto:
+        return None
+        
+    texto_original = texto.lower().strip()
+    # Eliminar tildes para comparar
+    texto = texto_original.replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
+    
     for loc in localidades:
-        if texto == loc["principal"].lower():
+        # Comparar con nombre principal sin tilde
+        principal_sin_tilde = loc["principal"].lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
+        if texto == principal_sin_tilde:
             return loc["principal"]
+        
+        # Comparar con alias sin tilde
         for alias in loc["alias"]:
-            if texto == alias.lower():
+            alias_sin_tilde = alias.lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
+            if texto == alias_sin_tilde:
                 return loc["principal"]
+    
     return None
 
+
 def obtener_lista_localidades():
-    """Devuelve lista de nombres principales en minúsculas para usar en extracción"""
-    return [loc["principal"].lower() for loc in localidades]
+    """Devuelve lista de nombres principales en minúsculas y sin tildes para búsqueda"""
+    lista = []
+    for loc in localidades:
+        nombre = loc["principal"].lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
+        lista.append(nombre)
+        # También agregar alias sin tilde
+        for alias in loc["alias"]:
+            alias_sin_tilde = alias.lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
+            if alias_sin_tilde not in lista:
+                lista.append(alias_sin_tilde)
+    return lista
+
+
+def extraer_origen_destino(mensaje):
+    m = mensaje.lower().strip()
+    print(f"🔍 EXTRAYENDO de: '{m}'")
+    
+    # Eliminar signos de puntuación
+    m = re.sub(r'[¿?!¡.,;:]', '', m)
+    
+    # Eliminar palabras irrelevantes al inicio (cual, es, el, la, etc.)
+    palabras_irrelevantes = ['cual', 'es', 'el', 'la', 'los', 'las', 'y', 'e']
+    
+    # Verificar si empieza con "cual es"
+    if m.startswith('cual es '):
+        m = m[8:]  # sacar "cual es "
+        print(f"  → Limpiado: '{m}'")
+    
+    # Sacar otras palabras irrelevantes del inicio
+    partes = m.split()
+    if partes and partes[0] in palabras_irrelevantes:
+        m = ' '.join(partes[1:])
+        print(f"  → Limpiado: '{m}'")
+    
+    # ============================================
+    # CASO 1: Buscar "de X a Y"
+    # ============================================
+    if " de " in m and " a " in m:
+        # Buscar la posición de "de"
+        palabras = m.split()
+        for i in range(len(palabras) - 2):
+            if palabras[i] == "de" and palabras[i+2] == "a":
+                origen = palabras[i+1]
+                # Juntar todo lo que sigue después del "a" como destino
+                destino = " ".join(palabras[i+3:])
+                
+                print(f"  → Encontré 'de' en posición {i}: origen='{origen}', destino='{destino}'")
+                
+                origen_norm = normalizar_localidad(origen)
+                destino_norm = normalizar_localidad(destino)
+                
+                if origen_norm and destino_norm:
+                    print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
+                    return origen_norm, destino_norm
+                
+                # Si no encuentra el destino completo, probar palabra por palabra
+                if origen_norm:
+                    palabras_destino = destino.split()
+                    for j in range(len(palabras_destino), 0, -1):
+                        posible_destino = " ".join(palabras_destino[:j])
+                        destino_norm = normalizar_localidad(posible_destino)
+                        if destino_norm:
+                            print(f"✅ EXTRAÍDO (parcial): {origen_norm} -> {destino_norm}")
+                            return origen_norm, destino_norm
+    
+    # ============================================
+    # CASO 2: Buscar "X a Y"
+    # ============================================
+    if " a " in m:
+        idx_a = m.find(" a ")
+        if idx_a != -1:
+            origen = m[:idx_a].strip()
+            destino = m[idx_a + 3:].strip()
+            
+            print(f"  → Formato simple: origen='{origen}', destino='{destino}'")
+            
+            origen_norm = normalizar_localidad(origen)
+            destino_norm = normalizar_localidad(destino)
+            
+            if origen_norm and destino_norm:
+                print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
+                return origen_norm, destino_norm
+            
+            # Si no encuentra el destino completo, probar palabra por palabra
+            if origen_norm:
+                palabras_destino = destino.split()
+                for j in range(len(palabras_destino), 0, -1):
+                    posible_destino = " ".join(palabras_destino[:j])
+                    destino_norm = normalizar_localidad(posible_destino)
+                    if destino_norm:
+                        print(f"✅ EXTRAÍDO (parcial): {origen_norm} -> {destino_norm}")
+                        return origen_norm, destino_norm
+    
+    print("❌ No se pudo extraer")
+    return None, None
 
 # ============================================
 # MATRIZ DE PRECIOS
@@ -468,7 +578,7 @@ horarios_domingos = [
 ]
 
 # ============================================
-# FUNCIONES DE UTILIDAD
+# FUNCIONES DE UTILIDAD (RESTO)
 # ============================================
 def hora_a_minutos(h):
     if not h: return None
@@ -478,54 +588,6 @@ def hora_a_minutos(h):
 def minutos_a_hora(m):
     if not m: return ""
     return f"{m//60:02d}:{m%60:02d}"
-
-def extraer_origen_destino(mensaje):
-    m = mensaje.lower().strip()
-    print(f"🔍 EXTRAYENDO de: '{m}'")
-    
-    # Eliminar signos de puntuación
-    m = re.sub(r'[¿?!¡.,;:]', '', m)
-    
-    # Lista de localidades válidas
-    localidades_validas = obtener_lista_localidades()
-    
-    # ============================================
-    # CASO 1: Buscar "de X a Y"
-    # ============================================
-    if " de " in m and " a " in m:
-        # Encontrar la posición de "de" y "a"
-        partes = m.split()
-        for i in range(len(partes) - 2):
-            if partes[i] == "de" and partes[i+2] == "a":
-                origen = partes[i+1]
-                # El destino puede ser múltiples palabras
-                destino = " ".join(partes[i+3:])
-                
-                origen_norm = normalizar_localidad(origen)
-                destino_norm = normalizar_localidad(destino)
-                
-                if origen_norm and destino_norm:
-                    print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
-                    return origen_norm, destino_norm
-    
-    # ============================================
-    # CASO 2: Buscar "X a Y" (sin "de")
-    # ============================================
-    if " a " in m:
-        idx_a = m.find(" a ")
-        if idx_a != -1:
-            origen = m[:idx_a].strip()
-            destino = m[idx_a + 3:].strip()
-            
-            origen_norm = normalizar_localidad(origen)
-            destino_norm = normalizar_localidad(destino)
-            
-            if origen_norm and destino_norm:
-                print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
-                return origen_norm, destino_norm
-    
-    print("❌ No se pudo extraer")
-    return None, None
 
 def detectar_intencion(m):
     ml = m.lower()
@@ -1176,5 +1238,5 @@ def whatsapp_reply():
 # ============================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - CHECKPOINT v2.1 (Fix Maria Grande)")
+    print(f"🚀 Bot listo en puerto {port} - CHECKPOINT v2.2 (Fix completo)")
     app.run(host='0.0.0.0', port=port, debug=False)

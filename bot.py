@@ -486,65 +486,43 @@ def extraer_origen_destino(mensaje):
     # Eliminar signos de puntuación
     m = re.sub(r'[¿?!¡.,;:]', '', m)
     
-    # Eliminar palabras irrelevantes al inicio (el, la, los, las, y, etc.)
-    palabras_irrelevantes = ['el', 'la', 'los', 'las', 'y', 'e']
-    partes = m.split()
-    if partes and partes[0] in palabras_irrelevantes:
-        m = ' '.join(partes[1:])
-        print(f"  → Limpiado: '{m}'")
-    
     # Lista de localidades válidas
     localidades_validas = obtener_lista_localidades()
     
     # ============================================
-    # BUSCAR PATRÓN "de X a Y"
+    # CASO 1: Buscar "de X a Y"
     # ============================================
-    # Buscar cualquier "de" que tenga un " a " después
-    palabras = m.split()
-    for i, palabra in enumerate(palabras):
-        if palabra == "de" and i + 2 < len(palabras) and palabras[i + 2] == "a":
-            # Encontramos "de X a"
-            origen = palabras[i + 1]
-            # El destino puede ser múltiples palabras después del "a"
-            destino_palabras = palabras[i + 3:]
-            # Buscar la localidad más larga que coincida
-            for j in range(len(destino_palabras), 0, -1):
-                posible_destino = " ".join(destino_palabras[:j])
-                if posible_destino in localidades_validas:
-                    origen_norm = normalizar_localidad(origen)
-                    destino_norm = normalizar_localidad(posible_destino)
-                    if origen_norm and destino_norm:
-                        print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
-                        return origen_norm, destino_norm
+    if " de " in m and " a " in m:
+        # Encontrar la posición de "de" y "a"
+        partes = m.split()
+        for i in range(len(partes) - 2):
+            if partes[i] == "de" and partes[i+2] == "a":
+                origen = partes[i+1]
+                # El destino puede ser múltiples palabras
+                destino = " ".join(partes[i+3:])
+                
+                origen_norm = normalizar_localidad(origen)
+                destino_norm = normalizar_localidad(destino)
+                
+                if origen_norm and destino_norm:
+                    print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
+                    return origen_norm, destino_norm
     
     # ============================================
-    # BUSCAR PATRÓN "X a Y" (sin "de")
+    # CASO 2: Buscar "X a Y" (sin "de")
     # ============================================
     if " a " in m:
         idx_a = m.find(" a ")
         if idx_a != -1:
             origen = m[:idx_a].strip()
-            resto_destino = m[idx_a + 3:].strip()
-            
-            print(f"  → Posible origen: '{origen}', resto destino: '{resto_destino}'")
+            destino = m[idx_a + 3:].strip()
             
             origen_norm = normalizar_localidad(origen)
-            if origen_norm:
-                # Buscar el destino (priorizando nombres más largos)
-                for loc in sorted(localidades_validas, key=len, reverse=True):
-                    if resto_destino.startswith(loc):
-                        destino_norm = normalizar_localidad(loc)
-                        print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
-                        return origen_norm, destino_norm
-                
-                # Si no encuentra, probar combinaciones
-                palabras_destino = resto_destino.split()
-                for k in range(len(palabras_destino), 0, -1):
-                    posible = " ".join(palabras_destino[:k])
-                    if posible in localidades_validas:
-                        destino_norm = normalizar_localidad(posible)
-                        print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
-                        return origen_norm, destino_norm
+            destino_norm = normalizar_localidad(destino)
+            
+            if origen_norm and destino_norm:
+                print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
+                return origen_norm, destino_norm
     
     print("❌ No se pudo extraer")
     return None, None

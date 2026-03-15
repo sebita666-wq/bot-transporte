@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - CHECKPOINT v2.0 (Marzo 2026)")
+print("🚀 BOT INICIADO - CHECKPOINT v2.1 (Fix Maria Grande)")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -85,7 +85,7 @@ def normalizar_localidad(texto):
     return None
 
 def obtener_lista_localidades():
-    """Devuelve lista de nombres principales para usar en extracción"""
+    """Devuelve lista de nombres principales en minúsculas para usar en extracción"""
     return [loc["principal"].lower() for loc in localidades]
 
 # ============================================
@@ -132,7 +132,16 @@ def obtener_precio(origen, destino):
         
         if not o_norm or not d_norm:
             return None
-            
+        
+        # Caso especial: María Grande tiene dos precios según la ruta
+        if (o_norm == "María Grande" and d_norm == "Paraná") or (o_norm == "Paraná" and d_norm == "María Grande"):
+            # Devolvemos un diccionario con ambos precios
+            return {
+                "R10": 8580,
+                "R18": 9900
+            }
+        
+        # Para el resto de los casos, matriz normal
         indices = {loc["principal"]: i for i, loc in enumerate(localidades)}
         i = indices[o_norm]
         j = indices[d_norm]
@@ -497,8 +506,8 @@ def extraer_origen_destino(mensaje):
             if not origen_norm:
                 print(f"  → Origen '{origen}' no es válido")
             else:
-                # Buscar el destino real dentro del resto
-                for loc in localidades_validas:
+                # Buscar el destino real dentro del resto (priorizando nombres más largos)
+                for loc in sorted(localidades_validas, key=len, reverse=True):
                     if resto_destino.startswith(loc):
                         destino_norm = normalizar_localidad(loc)
                         print(f"  → Destino encontrado: '{destino_norm}'")
@@ -506,11 +515,11 @@ def extraer_origen_destino(mensaje):
                         return origen_norm, destino_norm
                 
                 palabras = resto_destino.split()
-                for i in range(1, min(4, len(palabras) + 1)):
+                for i in range(len(palabras), 0, -1):
                     posible = " ".join(palabras[:i])
                     if posible in localidades_validas:
                         destino_norm = normalizar_localidad(posible)
-                        print(f"  → Destino encontrado: '{destino_norm}'")
+                        print(f"  → Destino encontrado por combinación: '{destino_norm}'")
                         print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
                         return origen_norm, destino_norm
     
@@ -529,7 +538,8 @@ def extraer_origen_destino(mensaje):
             if not origen_norm:
                 print(f"  → Origen '{origen}' no es válido")
             else:
-                for loc in localidades_validas:
+                # Buscar el destino real dentro del resto (priorizando nombres más largos)
+                for loc in sorted(localidades_validas, key=len, reverse=True):
                     if resto_destino.startswith(loc):
                         destino_norm = normalizar_localidad(loc)
                         print(f"  → Destino encontrado: '{destino_norm}'")
@@ -537,11 +547,11 @@ def extraer_origen_destino(mensaje):
                         return origen_norm, destino_norm
                 
                 palabras = resto_destino.split()
-                for i in range(1, min(4, len(palabras) + 1)):
+                for i in range(len(palabras), 0, -1):
                     posible = " ".join(palabras[:i])
                     if posible in localidades_validas:
                         destino_norm = normalizar_localidad(posible)
-                        print(f"  → Destino encontrado: '{destino_norm}'")
+                        print(f"  → Destino encontrado por combinación: '{destino_norm}'")
                         print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
                         return origen_norm, destino_norm
     
@@ -868,7 +878,12 @@ def whatsapp_reply():
             origen, destino = extraer_origen_destino(incoming_msg)
             if origen and destino:
                 precio = obtener_precio(origen, destino)
-                if precio:
+                if isinstance(precio, dict):
+                    # Caso especial: María Grande con dos precios
+                    msg.body(f"💰 El pasaje de {origen} a {destino} tiene dos precios según la ruta:\n\n"
+                             f"🛣️ *Por Ruta 10 (directo)*: **$8.580**\n"
+                             f"🛣️ *Por Ruta 18 (vía Viale)*: **$9.900**")
+                elif precio:
                     msg.body(f"💰 El pasaje de {origen} a {destino} cuesta **${precio}**.")
                 else:
                     msg.body(f"😕 No tengo precio de {origen} a {destino}.")
@@ -974,7 +989,12 @@ def whatsapp_reply():
             if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "$"]):
                 print("  → Es consulta de PRECIO")
                 precio = obtener_precio(origen, destino)
-                if precio:
+                if isinstance(precio, dict):
+                    # Caso especial: María Grande con dos precios
+                    msg.body(f"💰 El pasaje de {origen} a {destino} tiene dos precios según la ruta:\n\n"
+                             f"🛣️ *Por Ruta 10 (directo)*: **$8.580**\n"
+                             f"🛣️ *Por Ruta 18 (vía Viale)*: **$9.900**")
+                elif precio:
                     msg.body(f"💰 El pasaje de {origen} a {destino} cuesta **${precio}**.")
                 else:
                     msg.body(f"😕 No tengo precio de {origen} a {destino}.")
@@ -1103,7 +1123,12 @@ def whatsapp_reply():
             if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "$"]):
                 print("  → SUB-CASO: PRECIO (con contexto)")
                 precio = obtener_precio(o, d)
-                if precio:
+                if isinstance(precio, dict):
+                    # Caso especial: María Grande con dos precios
+                    msg.body(f"💰 El pasaje de {o} a {d} tiene dos precios según la ruta:\n\n"
+                             f"🛣️ *Por Ruta 10 (directo)*: **$8.580**\n"
+                             f"🛣️ *Por Ruta 18 (vía Viale)*: **$9.900**")
+                elif precio:
                     msg.body(f"💰 El pasaje de {o} a {d} cuesta **${precio}**.")
                 else:
                     msg.body(f"😕 No tengo precio de {o} a {d}.")
@@ -1182,5 +1207,5 @@ def whatsapp_reply():
 # ============================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - CHECKPOINT v2.0 (Marzo 2026)")
+    print(f"🚀 Bot listo en puerto {port} - CHECKPOINT v2.1 (Fix Maria Grande)")
     app.run(host='0.0.0.0', port=port, debug=False)

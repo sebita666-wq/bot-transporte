@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN FINAL (con detección de fechas)")
+print("🚀 BOT INICIADO - VERSIÓN COMPLETA CON HORARIOS")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -201,7 +201,7 @@ def extraer_origen_destino(mensaje):
     return None, None
 
 # ============================================
-# DETECCIÓN DE FECHA (NUEVA)
+# DETECCIÓN DE FECHA
 # ============================================
 
 def interpretar_fecha(mensaje):
@@ -311,13 +311,280 @@ def obtener_precio(origen, destino):
         return None
 
 # ============================================
-# HORARIOS (resumido por espacio, pero dejá los que ya tenés)
+# HORARIOS - DÍAS HÁBILES
 # ============================================
-# Acá van tus horarios_habiles, horarios_sabados, horarios_domingos
-# (los mismos que ya tenés en tu código, no los modifico)
+
+horarios_habiles = [
+    {"origen": "Paraná", "destino": "Viale", "hora": "04:45", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "05:35", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "06:40", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "08:45", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "10:00", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "12:15", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "13:05", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "14:00", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "15:30", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "17:15", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "18:00", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "19:30", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "20:45", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "23:00", "ruta": "R18"},
+    
+    {"origen": "Viale", "destino": "Paraná", "hora": "05:10", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "06:05", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "07:20", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "08:15", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "10:25", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "10:45", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "12:00", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "13:30", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "15:40", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "17:30", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "19:40", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "21:10", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "00:30", "ruta": "R18"},
+    
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "04:45", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "05:35", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "08:45", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "13:05", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "15:30", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "17:15", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "20:45", "ruta": "R18"},
+    
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "07:45", "ruta": "R10"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "10:15", "ruta": "R10"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "16:30", "ruta": "R10"},
+    
+    {"origen": "Tabossi", "destino": "Paraná", "hora": "04:50", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Paraná", "hora": "05:45", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Paraná", "hora": "07:00", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Paraná", "hora": "10:25", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Paraná", "hora": "12:35", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Paraná", "hora": "17:00", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Paraná", "hora": "23:30", "ruta": "R18"},
+    
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "04:45", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "13:05", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "17:15", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "20:45", "ruta": "R18"},
+    
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "07:45", "ruta": "R10"},
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "10:15", "ruta": "R10"},
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "16:30", "ruta": "R10"},
+    
+    {"origen": "Estación Sosa", "destino": "Paraná", "hora": "06:25", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Paraná", "hora": "11:55", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Paraná", "hora": "14:30", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Paraná", "hora": "14:45", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Paraná", "hora": "18:15", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Paraná", "hora": "18:55", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Paraná", "hora": "22:25", "ruta": "R18"},
+    
+    {"origen": "Paraná", "destino": "María Grande", "hora": "07:45", "ruta": "R10"},
+    {"origen": "Paraná", "destino": "María Grande", "hora": "10:15", "ruta": "R10"},
+    {"origen": "Paraná", "destino": "María Grande", "hora": "16:30", "ruta": "R10"},
+    
+    {"origen": "Paraná", "destino": "María Grande", "hora": "04:45", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "María Grande", "hora": "13:05", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "María Grande", "hora": "17:15", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "María Grande", "hora": "20:45", "ruta": "R18"},
+    
+    {"origen": "María Grande", "destino": "Paraná", "hora": "06:45", "ruta": "R10"},
+    {"origen": "María Grande", "destino": "Paraná", "hora": "14:50", "ruta": "R10"},
+    {"origen": "María Grande", "destino": "Paraná", "hora": "19:15", "ruta": "R10"},
+    
+    {"origen": "María Grande", "destino": "Paraná", "hora": "15:05", "ruta": "R18"},
+    {"origen": "María Grande", "destino": "Paraná", "hora": "19:25", "ruta": "R18"},
+    
+    {"origen": "Viale", "destino": "Tabossi", "hora": "05:50", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Tabossi", "hora": "06:45", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Tabossi", "hora": "09:55", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Tabossi", "hora": "14:15", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Tabossi", "hora": "16:40", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Tabossi", "hora": "18:25", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Tabossi", "hora": "21:55", "ruta": "R18"},
+    
+    {"origen": "Tabossi", "destino": "Viale", "hora": "04:50", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Viale", "hora": "05:45", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Viale", "hora": "07:00", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Viale", "hora": "10:25", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Viale", "hora": "12:35", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Viale", "hora": "17:00", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Viale", "hora": "23:30", "ruta": "R18"},
+    
+    {"origen": "Viale", "destino": "Estación Sosa", "hora": "05:50", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Estación Sosa", "hora": "06:45", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Estación Sosa", "hora": "13:50", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Estación Sosa", "hora": "14:15", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Estación Sosa", "hora": "16:40", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Estación Sosa", "hora": "18:25", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Estación Sosa", "hora": "21:55", "ruta": "R18"},
+    
+    {"origen": "Estación Sosa", "destino": "Viale", "hora": "06:10", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Viale", "hora": "09:45", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Viale", "hora": "12:15", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Viale", "hora": "18:35", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Viale", "hora": "23:15", "ruta": "R18"},
+    
+    {"origen": "Tabossi", "destino": "Estación Sosa", "hora": "06:10", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Estación Sosa", "hora": "14:10", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Estación Sosa", "hora": "14:30", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Estación Sosa", "hora": "18:30", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Estación Sosa", "hora": "22:10", "ruta": "R18"},
+    
+    {"origen": "Estación Sosa", "destino": "Tabossi", "hora": "06:25", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Tabossi", "hora": "14:30", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Tabossi", "hora": "14:45", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Tabossi", "hora": "18:45", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Tabossi", "hora": "22:30", "ruta": "R18"},
+    
+    {"origen": "Estación Sosa", "destino": "María Grande", "hora": "06:25", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "María Grande", "hora": "14:30", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "María Grande", "hora": "14:45", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "María Grande", "hora": "18:45", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "María Grande", "hora": "22:30", "ruta": "R18"},
+    
+    {"origen": "María Grande", "destino": "Estación Sosa", "hora": "09:25", "ruta": "R18"},
+    {"origen": "María Grande", "destino": "Estación Sosa", "hora": "11:55", "ruta": "R18"},
+    {"origen": "María Grande", "destino": "Estación Sosa", "hora": "18:15", "ruta": "R18"},
+    {"origen": "María Grande", "destino": "Estación Sosa", "hora": "23:00", "ruta": "R18"},
+    
+    {"origen": "Paraná", "destino": "Aldea San Antonio", "hora": "06:40", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Aldea San Antonio", "hora": "10:15", "ruta": "R18"},
+    
+    {"origen": "Aldea San Antonio", "destino": "Paraná", "hora": "12:55", "ruta": "R18"},
+    {"origen": "Aldea San Antonio", "destino": "Paraná", "hora": "23:15", "ruta": "R18"},
+]
 
 # ============================================
-# FUNCIONES DE UTILIDAD
+# HORARIOS - SÁBADOS
+# ============================================
+horarios_sabados = [
+    {"origen": "Paraná", "destino": "Viale", "hora": "04:45", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "05:35", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "07:00", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "08:45", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "11:40", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "12:30", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "14:00", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "15:15", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "17:00", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "19:30", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "20:45", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "23:00", "ruta": "R18"},
+    
+    {"origen": "Viale", "destino": "Paraná", "hora": "08:30", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "11:00", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "12:00", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "13:30", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "15:15", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "16:00", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "21:10", "ruta": "R18"},
+    
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "04:45", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "05:35", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "10:00", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "12:30", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "15:15", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "17:00", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "20:45", "ruta": "R18"},
+    
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "07:45", "ruta": "R10"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "10:15", "ruta": "R10"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "16:30", "ruta": "R10"},
+    
+    {"origen": "Tabossi", "destino": "Paraná", "hora": "06:15", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Paraná", "hora": "07:00", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Paraná", "hora": "12:00", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Paraná", "hora": "16:40", "ruta": "R18"},
+    
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "04:45", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "12:30", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "17:00", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "20:45", "ruta": "R18"},
+    
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "07:45", "ruta": "R10"},
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "10:15", "ruta": "R10"},
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "16:30", "ruta": "R10"},
+    
+    {"origen": "Estación Sosa", "destino": "Paraná", "hora": "06:25", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Paraná", "hora": "12:00", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Paraná", "hora": "14:30", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Paraná", "hora": "18:20", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Paraná", "hora": "23:00", "ruta": "R18"},
+    
+    {"origen": "Paraná", "destino": "María Grande", "hora": "07:45", "ruta": "R10"},
+    {"origen": "Paraná", "destino": "María Grande", "hora": "10:15", "ruta": "R10"},
+    {"origen": "Paraná", "destino": "María Grande", "hora": "16:30", "ruta": "R10"},
+    
+    {"origen": "Paraná", "destino": "María Grande", "hora": "04:45", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "María Grande", "hora": "12:30", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "María Grande", "hora": "17:00", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "María Grande", "hora": "20:45", "ruta": "R18"},
+    
+    {"origen": "María Grande", "destino": "Paraná", "hora": "06:45", "ruta": "R10"},
+    {"origen": "María Grande", "destino": "Paraná", "hora": "14:50", "ruta": "R10"},
+    {"origen": "María Grande", "destino": "Paraná", "hora": "19:05", "ruta": "R10"},
+    
+    {"origen": "María Grande", "destino": "Paraná", "hora": "09:10", "ruta": "R18"},
+    {"origen": "María Grande", "destino": "Paraná", "hora": "18:00", "ruta": "R18"},
+    {"origen": "María Grande", "destino": "Paraná", "hora": "22:45", "ruta": "R18"},
+]
+
+# ============================================
+# HORARIOS - DOMINGOS
+# ============================================
+horarios_domingos = [
+    {"origen": "Paraná", "destino": "Viale", "hora": "07:15", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "08:00", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "10:15", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "12:30", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "15:15", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "17:00", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "19:00", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Viale", "hora": "21:00", "ruta": "R18"},
+    
+    {"origen": "Viale", "destino": "Paraná", "hora": "08:45", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "09:30", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "12:00", "ruta": "R18"},
+    {"origen": "Viale", "destino": "Paraná", "hora": "20:45", "ruta": "R18"},
+    
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "11:00", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "12:30", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "15:15", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "17:00", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Tabossi", "hora": "21:00", "ruta": "R18"},
+    
+    {"origen": "Tabossi", "destino": "Paraná", "hora": "13:00", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Paraná", "hora": "16:50", "ruta": "R18"},
+    {"origen": "Tabossi", "destino": "Paraná", "hora": "22:50", "ruta": "R18"},
+    
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "12:30", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "15:00", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "Estación Sosa", "hora": "17:00", "ruta": "R18"},
+    
+    {"origen": "Estación Sosa", "destino": "Paraná", "hora": "14:30", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Paraná", "hora": "17:00", "ruta": "R18"},
+    {"origen": "Estación Sosa", "destino": "Paraná", "hora": "19:00", "ruta": "R18"},
+    
+    {"origen": "Paraná", "destino": "María Grande", "hora": "07:45", "ruta": "R10"},
+    {"origen": "Paraná", "destino": "María Grande", "hora": "10:00", "ruta": "R10"},
+    
+    {"origen": "Paraná", "destino": "María Grande", "hora": "12:30", "ruta": "R18"},
+    {"origen": "Paraná", "destino": "María Grande", "hora": "17:00", "ruta": "R18"},
+    
+    {"origen": "María Grande", "destino": "Paraná", "hora": "09:10", "ruta": "R10"},
+    {"origen": "María Grande", "destino": "Paraná", "hora": "12:00", "ruta": "R10"},
+    {"origen": "María Grande", "destino": "Paraná", "hora": "14:50", "ruta": "R10"},
+    {"origen": "María Grande", "destino": "Paraná", "hora": "19:25", "ruta": "R10"},
+    
+    {"origen": "María Grande", "destino": "Paraná", "hora": "16:25", "ruta": "R18"},
+    {"origen": "María Grande", "destino": "Paraná", "hora": "20:55", "ruta": "R18"},
+]
+
+# ============================================
+# FUNCIONES DE UTILIDAD (RESTO)
 # ============================================
 def hora_a_minutos(h):
     if not h: return None
@@ -371,16 +638,16 @@ def formatear_horarios(resultados, origen, destino, fecha_str):
     return texto
 
 # ============================================
-# PREGUNTAS FRECUENTES (resumido)
+# PREGUNTAS FRECUENTES
 # ============================================
 def responder_faq(mensaje):
     m = mensaje.lower()
     if any(p in m for p in ["como usar", "cómo usar", "ayuda", "funciona"]):
-        return "📱 *Guía rápida del bot*\n\n✅ Usá 'De X a Y' o 'X a Y'"
+        return "📱 *Guía rápida*\n✅ Usá 'De X a Y' o 'X a Y'"
     if any(p in m for p in ["boleto seguro", "seguro", "policia", "menores"]):
         return "👮 *Boleto Seguro*: $1.852 (policías y menores de 5 años)"
     if any(p in m for p in ["pago", "pagar", "sube"]):
-        return "💳 *Medios de pago*: Solo SUBE (tarjeta, débito, crédito, QR)"
+        return "💳 *Medios de pago*: Solo SUBE"
     return None
 
 # ============================================
@@ -406,7 +673,7 @@ def whatsapp_reply():
             return str(resp)
 
         if any(p in incoming_msg.lower() for p in ["chau", "adiós", "adios", "bye", "gracias"]):
-            resetear_contexto(sender)
+            session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
             msg.body("😊 ¡Gracias por consultar! Escribime 'Hola' para empezar de nuevo.")
             return str(resp)
 
@@ -417,15 +684,11 @@ def whatsapp_reply():
 
         # Menú
         if incoming_msg == "1":
-            resetear_contexto(sender)
-            ctx["estado"] = "esperando_origen_horarios"
-            session[sender] = ctx
+            session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "esperando_origen_horarios", "intencion": None, "fecha_pendiente": None}
             msg.body("📝 Decime de dónde a dónde querés viajar (ej: De Viale a Parana)")
             return str(resp)
         if incoming_msg == "2":
-            resetear_contexto(sender)
-            ctx["estado"] = "esperando_origen_precios"
-            session[sender] = ctx
+            session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "esperando_origen_precios", "intencion": None, "fecha_pendiente": None}
             msg.body("📝 Decime de dónde a dónde querés viajar (ej: De Viale a Parana)")
             return str(resp)
         if incoming_msg == "3":
@@ -450,7 +713,7 @@ def whatsapp_reply():
                     msg.body(f"💰 El pasaje de {origen} a {destino} cuesta **${precio}**.")
                 else:
                     msg.body(f"😕 No tengo precio de {origen} a {destino}.")
-                resetear_contexto(sender)
+                session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
                 return str(resp)
             else:
                 msg.body("🤔 No entendí. Usá formato 'De Viale a Parana'")
@@ -504,7 +767,7 @@ def whatsapp_reply():
                         msg.body(f"😕 No hay servicios de {origen} a {destino} para {fecha_str}.")
                 else:
                     msg.body(formatear_horarios(resultados, origen, destino, fecha_str))
-                resetear_contexto(sender)
+                session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
                 return str(resp)
             else:
                 msg.body("🤔 No entendí. Usá formato 'De Viale a Parana'")
@@ -525,7 +788,7 @@ def whatsapp_reply():
                     msg.body(f"💰 El pasaje de {origen} a {destino} cuesta **${precio}**.")
                 else:
                     msg.body(f"😕 No tengo precio de {origen} a {destino}.")
-                resetear_contexto(sender)
+                session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
                 return str(resp)
 
             hora_limite = extraer_hora_limite(incoming_msg) if not intencion else None
@@ -570,7 +833,7 @@ def whatsapp_reply():
                     msg.body(f"😕 No hay servicios de {origen} a {destino} para {fecha_str}.")
             else:
                 msg.body(formatear_horarios(resultados, origen, destino, fecha_str))
-            resetear_contexto(sender)
+            session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
             return str(resp)
 
         if intencion and not origen:
@@ -591,10 +854,7 @@ def whatsapp_reply():
         resp.message().body("⚠️ Ocurrió un error. Intentá de nuevo.")
         return str(resp)
 
-def resetear_contexto(sender):
-    session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
-
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - VERSIÓN FINAL")
+    print(f"🚀 Bot listo en puerto {port} - VERSIÓN COMPLETA")
     app.run(host='0.0.0.0', port=port, debug=False)

@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN COMPLETA CON HORARIOS")
+print("🚀 BOT INICIADO - VERSIÓN ESTABLE CON AYUDA DETALLADA")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -73,35 +73,22 @@ localidades = [
     { "principal": "Paraná", "alias": ["Parana"] }
 ]
 
-# ============================================
-# FUNCIONES DE NORMALIZACIÓN
-# ============================================
-
 def normalizar_localidad(texto):
-    """Convierte cualquier texto al nombre principal de la localidad (sin tildes)"""
     if not texto:
         return None
-        
-    texto_original = texto.lower().strip()
-    # Eliminar tildes para comparar
-    texto = texto_original.replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
-    
+    texto = texto.lower().strip()
+    texto = texto.replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
     for loc in localidades:
-        # Comparar con nombre principal sin tilde
         principal_sin_tilde = loc["principal"].lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
         if texto == principal_sin_tilde:
             return loc["principal"]
-        
-        # Comparar con alias sin tilde
         for alias in loc["alias"]:
             alias_sin_tilde = alias.lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
             if texto == alias_sin_tilde:
                 return loc["principal"]
-    
     return None
 
 def obtener_lista_localidades():
-    """Devuelve lista de nombres principales en minúsculas y sin tildes para búsqueda"""
     lista = []
     for loc in localidades:
         nombre = loc["principal"].lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
@@ -113,17 +100,14 @@ def obtener_lista_localidades():
     return lista
 
 # ============================================
-# EXTRACCIÓN DE ORIGEN/DESTINO (VERSIÓN DEFINITIVA)
+# EXTRACCIÓN DE ORIGEN/DESTINO
 # ============================================
-
 def extraer_origen_destino(mensaje):
     m = mensaje.lower().strip()
     print(f"🔍 EXTRAYENDO de: '{m}'")
     
-    # Eliminar signos de puntuación
     m = re.sub(r'[¿?!¡.,;:]', '', m)
     
-    # Eliminar palabras irrelevantes al inicio
     palabras_irrelevantes = ['cual', 'es', 'el', 'la', 'los', 'las', 'y', 'e']
     
     if m.startswith('cual es '):
@@ -135,30 +119,20 @@ def extraer_origen_destino(mensaje):
         m = ' '.join(partes[1:])
         print(f"  → Limpiado inicio: '{m}'")
     
-    # ============================================
-    # CASO 1: Buscar "de X a Y" (PRIORITARIO)
-    # ============================================
+    # CASO 1: Buscar "de X a Y"
     palabras = m.split()
-    
-    # Buscar la posición de "de"
     for i, palabra in enumerate(palabras):
         if palabra == "de":
-            # Buscar la posición del "a" después de este "de"
             for j in range(i + 2, len(palabras)):
                 if palabras[j] == "a":
-                    # Encontramos "de ... a"
                     origen = " ".join(palabras[i+1:j])
                     destino = " ".join(palabras[j+1:])
-                    
                     print(f"  → Encontré 'de' en {i}, 'a' en {j}: origen='{origen}', destino='{destino}'")
-                    
                     origen_norm = normalizar_localidad(origen)
                     destino_norm = normalizar_localidad(destino)
-                    
                     if origen_norm and destino_norm:
                         print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
                         return origen_norm, destino_norm
-                    
                     if origen_norm:
                         palabras_destino = destino.split()
                         for k in range(len(palabras_destino), 0, -1):
@@ -169,25 +143,19 @@ def extraer_origen_destino(mensaje):
                                 return origen_norm, destino_norm
                     break
     
-    # ============================================
-    # CASO 2: Buscar "X a Y" (sin "de")
-    # ============================================
+    # CASO 2: Buscar "X a Y"
     if " a " in m and not m.startswith('de '):
         idx_a = m.find(" a ")
         if idx_a != -1:
             origen = m[:idx_a].strip()
             destino = m[idx_a + 3:].strip()
-            
             if "de" not in origen.split():
                 print(f"  → Formato simple: origen='{origen}', destino='{destino}'")
-                
                 origen_norm = normalizar_localidad(origen)
                 destino_norm = normalizar_localidad(destino)
-                
                 if origen_norm and destino_norm:
                     print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
                     return origen_norm, destino_norm
-                
                 if origen_norm:
                     palabras_destino = destino.split()
                     for j in range(len(palabras_destino), 0, -1):
@@ -203,27 +171,18 @@ def extraer_origen_destino(mensaje):
 # ============================================
 # DETECCIÓN DE FECHA
 # ============================================
-
 def interpretar_fecha(mensaje):
-    """
-    Busca en el mensaje una fecha específica (ej: '17/03', '17 de marzo', '17/03/2026')
-    Si no encuentra, devuelve hoy o mañana según palabras clave.
-    """
     m = mensaje.lower().strip()
     hoy = ahora_argentina().replace(hour=0, minute=0, second=0, microsecond=0)
     
-    # ============================================
-    # CASO 1: Fecha en formato DD/MM o DD/MM/YYYY
-    # ============================================
+    # Formato DD/MM o DD/MM/YYYY
     match = re.search(r'(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?', m)
     if match:
         dia = int(match.group(1))
         mes = int(match.group(2))
         anio = int(match.group(3)) if match.group(3) else hoy.year
-        
         if anio < 100:
             anio += 2000
-        
         try:
             fecha = datetime(anio, mes, dia, tzinfo=hoy.tzinfo)
             print(f"📅 Fecha detectada: {fecha.strftime('%d/%m/%Y')}")
@@ -231,20 +190,16 @@ def interpretar_fecha(mensaje):
         except ValueError:
             print(f"⚠️ Fecha inválida: {dia}/{mes}/{anio}")
     
-    # ============================================
-    # CASO 2: Fecha en formato "17 de marzo"
-    # ============================================
+    # Formato "17 de marzo"
     meses = {
         'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6,
         'julio': 7, 'agosto': 8, 'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
     }
-    
     match = re.search(r'(\d{1,2})\s+de\s+([a-z]+)', m)
     if match:
         dia = int(match.group(1))
         mes_nombre = match.group(2)
         mes = meses.get(mes_nombre)
-        
         if mes:
             try:
                 fecha = datetime(hoy.year, mes, dia, tzinfo=hoy.tzinfo)
@@ -255,13 +210,10 @@ def interpretar_fecha(mensaje):
             except ValueError:
                 print(f"⚠️ Fecha inválida: {dia} de {mes_nombre}")
     
-    # ============================================
-    # CASO 3: Palabras clave "hoy" o "mañana"
-    # ============================================
+    # Palabras clave
     if "mañana" in m or "manana" in m:
         print("📅 Fecha: mañana")
         return hoy + timedelta(days=1)
-    
     if "hoy" in m:
         print("📅 Fecha: hoy")
         return hoy
@@ -272,10 +224,6 @@ def interpretar_fecha(mensaje):
 # ============================================
 # MATRIZ DE PRECIOS
 # ============================================
-# Índices: 0=Genolet, 1=Sauce, 2=3 Bocas, 3=Quebracho, 4=El Ramblón,
-#          5=Viale, 6=Tabossi, 7=Estación Sosa, 8=María Grande,
-#          9=Paraje de las Piedras, 10=Arroyo Carmona, 11=Sauce Montrull, 12=Paraná
-
 matriz_precios = [
     [1852,1852,1852,1852,1852,1852,1852,1852,1852,1852,1852,1852,1852],
     [1852,2100,2150,2200,2904,3432,3828,2508,2300,2772,3960,4488,2100],
@@ -296,24 +244,18 @@ def obtener_precio(origen, destino):
     try:
         o_norm = normalizar_localidad(origen)
         d_norm = normalizar_localidad(destino)
-        
         if not o_norm or not d_norm:
             return None
-        
         if (o_norm == "María Grande" and d_norm == "Paraná") or (o_norm == "Paraná" and d_norm == "María Grande"):
             return {"R10": 8580, "R18": 9900}
-        
         indices = {loc["principal"]: i for i, loc in enumerate(localidades)}
-        i = indices[o_norm]
-        j = indices[d_norm]
-        return matriz_precios[i][j]
-    except (KeyError, IndexError):
+        return matriz_precios[indices[o_norm]][indices[d_norm]]
+    except:
         return None
 
 # ============================================
 # HORARIOS - DÍAS HÁBILES
 # ============================================
-
 horarios_habiles = [
     {"origen": "Paraná", "destino": "Viale", "hora": "04:45", "ruta": "R18"},
     {"origen": "Paraná", "destino": "Viale", "hora": "05:35", "ruta": "R18"},
@@ -584,7 +526,7 @@ horarios_domingos = [
 ]
 
 # ============================================
-# FUNCIONES DE UTILIDAD (RESTO)
+# FUNCIONES DE UTILIDAD
 # ============================================
 def hora_a_minutos(h):
     if not h: return None
@@ -638,17 +580,98 @@ def formatear_horarios(resultados, origen, destino, fecha_str):
     return texto
 
 # ============================================
-# PREGUNTAS FRECUENTES
+# FUNCIONES DE RESPUESTA (MEJORADAS)
 # ============================================
-def responder_faq(mensaje):
-    m = mensaje.lower()
-    if any(p in m for p in ["como usar", "cómo usar", "ayuda", "funciona"]):
-        return "📱 *Guía rápida*\n✅ Usá 'De X a Y' o 'X a Y'"
-    if any(p in m for p in ["boleto seguro", "seguro", "policia", "menores"]):
-        return "👮 *Boleto Seguro*: $1.852 (policías y menores de 5 años)"
-    if any(p in m for p in ["pago", "pagar", "sube"]):
-        return "💳 *Medios de pago*: Solo SUBE"
-    return None
+
+def mostrar_menu():
+    return (
+        "👋 *Hola! Soy el asistente virtual de Empresa Fluviales* 🚌\n\n"
+        "¿Qué querés hacer hoy?\n\n"
+        "🔹 *1* → Ver horarios de colectivos\n"
+        "🔹 *2* → Consultar precios de pasajes\n"
+        "🔹 *3* → Información útil (terminales, teléfono)\n"
+        "🔹 *4* → Preguntas frecuentes (equipaje, mascotas, etc.)\n\n"
+        "📝 *También podés escribir directamente:*\n"
+        "• 'De Parana a Viale'\n"
+        "• 'Precio de Parana a Maria Grande'\n"
+        "• 'Primer colectivo de Viale a Parana'\n"
+        "• 'Próximo de Tabossi a Parana'\n"
+        "• 'Último de Parana a Sosa el 17/03'\n\n"
+        "💬 *Escribí 'Ayuda' si querés más detalles.*"
+    )
+
+def mostrar_ayuda_detallada():
+    return (
+        "📘 *GUÍA COMPLETA DE USO DEL BOT*\n\n"
+        "✅ *FRASES QUE SÍ FUNCIONAN:*\n"
+        "• 'De Parana a Viale'\n"
+        "• 'Parana a Viale'\n"
+        "• 'Precio de Parana a Maria Grande'\n"
+        "• 'Primer colectivo de Viale a Parana'\n"
+        "• 'Próximo de Tabossi a Parana'\n"
+        "• 'Último de Parana a Sosa el 17/03'\n"
+        "• 'Horarios de Parana a Tabossi después de las 15'\n\n"
+        "❌ *FRASES QUE NO FUNCIONAN (ERRORES COMUNES):*\n"
+        "• 'Parana Viale' → ❌ Falta la palabra 'a'\n"
+        "• 'Quiero ir a Viale' → ❌ Falta el origen\n"
+        "• 'De Parana a Buenos Aires' → ❌ Localidad no válida\n"
+        "• 'Primero' → ❌ Falta origen y destino\n"
+        "• 'Precio' → ❌ Falta origen y destino\n\n"
+        "💡 *CONSEJOS PARA EVITAR ERRORES:*\n"
+        "• Usá siempre el formato *'De X a Y'* o *'X a Y'*\n"
+        "• Las localidades válidas son: Parana, Viale, Tabossi, Sosa, Maria Grande, Genolet, Sauce, 3 Bocas, Quebracho, El Ramblón, Aldea San Antonio, Paraje de las Piedras, Arroyo Carmona, Sauce Montrull\n"
+        "• Podés escribir con o sin tildes (ej: 'Maria' funciona igual que 'María')\n"
+        "• Para fechas específicas, usá formato *'17/03'* o *'17 de marzo'*\n\n"
+        "📌 *EJEMPLOS DE CONSULTAS AVANZADAS:*\n"
+        "• 'Cual es el primer colectivo de Parana a Viale el 20/03'\n"
+        "• 'El próximo de Maria Grande a Parana'\n"
+        "• 'Último de Tabossi a Parana mañana'\n"
+        "• 'Precio de Genolet a Sauce'\n\n"
+        "👋 *Escribí 'Hola' para volver al menú principal.*"
+    )
+
+def no_entendido():
+    return (
+        "🤔 *Ups! No entendí lo que escribiste.*\n\n"
+        "Intentá con frases como:\n"
+        "• 'De Parana a Viale'\n"
+        "• 'Precio de Parana a Maria Grande'\n"
+        "• 'Primer colectivo de Viale a Parana'\n\n"
+        "O escribí *'Ayuda'* para ver la guía completa."
+    )
+
+def mostrar_faq():
+    return (
+        "❓ *Preguntas frecuentes*\n\n"
+        "Escribí la palabra clave que te interese:\n\n"
+        "💰 *pago* – Medios de pago aceptados\n"
+        "🧳 *equipaje* – Límite de bultos\n"
+        "🐕 *mascota* – Cómo viajan las mascotas\n"
+        "👮 *boleto seguro* – Para policías y menores\n"
+        "👶 *menores* – Pasajes para niños\n"
+        "📞 *objetos perdidos* – Dónde reclamar\n"
+        "💺 *asiento* – Asignación de asientos\n"
+        "📝 *reclamo* – Cómo hacer un reclamo\n\n"
+        "➡️ Ej: 'pago', 'equipaje', 'mascota'"
+    )
+
+def mostrar_info_util():
+    return (
+        "📌 *Información útil*\n\n"
+        "📍 *Terminal Paraná:* Av. Ramírez 1200\n"
+        "📍 *Terminal María Grande:* San Martín 450\n"
+        "📍 *Terminal Viale:* (pendiente)\n\n"
+        "📞 *Teléfono de contacto:* 343 456-7890\n"
+        "⏰ *Atención:* Lun a Dom 6:00 a 22:00\n\n"
+        "🌐 *Web:* www.fluviales.com.ar"
+    )
+
+def despedida():
+    return (
+        "😊 *¡Gracias por consultar!*\n\n"
+        "Si necesitás algo más, ya sabés dónde encontrarme.\n"
+        "Escribí *'Hola'* para empezar de nuevo."
+    )
 
 # ============================================
 # WEBHOOK PRINCIPAL
@@ -674,7 +697,7 @@ def whatsapp_reply():
 
         if any(p in incoming_msg.lower() for p in ["chau", "adiós", "adios", "bye", "gracias"]):
             session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
-            msg.body("😊 ¡Gracias por consultar! Escribime 'Hola' para empezar de nuevo.")
+            msg.body(despedida())
             return str(resp)
 
         faq = responder_faq(incoming_msg)
@@ -692,14 +715,18 @@ def whatsapp_reply():
             msg.body("📝 Decime de dónde a dónde querés viajar (ej: De Viale a Parana)")
             return str(resp)
         if incoming_msg == "3":
-            msg.body("📌 *Información útil*\n📍 Terminal Paraná: Av. Ramírez 1200\n📍 Terminal María Grande: San Martín 450\n📞 Teléfono: 343 456-7890")
+            msg.body(mostrar_info_util())
             return str(resp)
         if incoming_msg == "4":
-            msg.body("❓ *Preguntas frecuentes*\nEscribí 'pago', 'equipaje', 'mascota', etc.")
+            msg.body(mostrar_faq())
             return str(resp)
 
-        if incoming_msg.lower() in ["hola", "buenos dias", "buenas tardes", "ayuda"]:
-            msg.body("👋 Hola, soy el asistente de la empresa Fluviales.\n\nElegí una opción:\n1️⃣ Ver horarios\n2️⃣ Consultar precios\n3️⃣ Información útil\n4️⃣ Preguntas frecuentes")
+        if incoming_msg.lower() in ["hola", "buenos dias", "buenas tardes"]:
+            msg.body(mostrar_menu())
+            return str(resp)
+
+        if incoming_msg.lower() == "ayuda":
+            msg.body(mostrar_ayuda_detallada())
             return str(resp)
 
         # Procesar según estado
@@ -716,7 +743,7 @@ def whatsapp_reply():
                 session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
                 return str(resp)
             else:
-                msg.body("🤔 No entendí. Usá formato 'De Viale a Parana'")
+                msg.body(no_entendido())
                 return str(resp)
 
         if ctx.get("estado") == "esperando_origen_horarios":
@@ -770,7 +797,7 @@ def whatsapp_reply():
                 session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
                 return str(resp)
             else:
-                msg.body("🤔 No entendí. Usá formato 'De Viale a Parana'")
+                msg.body(no_entendido())
                 return str(resp)
 
         # Consulta directa
@@ -844,7 +871,7 @@ def whatsapp_reply():
             msg.body("📝 Decime de dónde a dónde querés viajar.")
             return str(resp)
 
-        msg.body("🤔 No entendí. Probá con 'Hola', 'De Parana a Viale' o 'Precio de Parana a Viale'.")
+        msg.body(no_entendido())
         return str(resp)
 
     except Exception as e:
@@ -856,5 +883,5 @@ def whatsapp_reply():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - VERSIÓN COMPLETA")
+    print(f"🚀 Bot listo en puerto {port} - VERSIÓN ESTABLE CON AYUDA DETALLADA")
     app.run(host='0.0.0.0', port=port, debug=False)

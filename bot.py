@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN ESTABLE CON AYUDA DETALLADA")
+print("🚀 BOT INICIADO - VERSIÓN COMPLETA CON AYUDA DETALLADA Y FAQ CORREGIDA")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -673,6 +673,56 @@ def despedida():
         "Escribí *'Hola'* para empezar de nuevo."
     )
 
+def responder_faq(mensaje):
+    m = mensaje.lower()
+    if any(p in m for p in ["pago", "pagar", "sube", "tarjeta", "qr", "mercadopago", "debito", "credito"]):
+        return ("💳 *Medios de pago*\n\n"
+                "A partir de Febrero de 2026, el único medio de pago disponible es a través de la **red SUBE**.\n"
+                "Podés pagar con:\n"
+                "• Tarjeta SUBE\n"
+                "• Tarjeta de débito o crédito\n"
+                "• Mercado Pago QR\n\n"
+                "Todos los pagos se realizan en la terminal antes de subir.")
+    
+    if any(p in m for p in ["equipaje", "valija", "bulto", "maleta"]):
+        return ("🧳 *Límite de equipaje*\n\n"
+                "Podés llevar hasta **2 bultos por persona** con un peso máximo total de **10 kg**.\n"
+                "Si necesitás llevar más, consultanos con anticipación para evaluar disponibilidad en bodega.")
+    
+    if any(p in m for p in ["mascota", "perro", "gato", "animal"]):
+        return ("🐕 *Mascotas a bordo*\n\n"
+                "• Mascotas pequeñas viajan **en jaula o bolso transportador**, únicamente en **bodega** (por disposición de Transporte Provincial).\n"
+                "• **Perros de asistencia** viajan sin restricciones.\n"
+                "• No se permiten mascotas sueltas en el interior del colectivo.")
+    
+    if any(p in m for p in ["perdi", "objeto", "olvide", "cartera", "celular", "llaves"]):
+        return ("📞 *Objetos perdidos*\n\n"
+                "Si perdiste algo en un colectivo, comunicate al 📱 **343 456-7890** o acercate a nuestra empresa en:\n"
+                "📍 **Guetto de Varsovia 211, Paraná** (Empresa Grupo ERSA)\n\n"
+                "Tené a mano el día y horario del viaje para ayudarte a ubicarlo.")
+    
+    if any(p in m for p in ["descuento", "estudiante", "jubilado", "beneficio"]):
+        return ("👨‍🎓 *Descuentos*\n\n"
+                "El descuento lo aplica directamente el **sistema SUBE**.\n"
+                "Nosotros no podemos gestionar ningún tipo de descuento. Solo aquellas personas que tengan el beneficio activado en su tarjeta SUBE podrán acceder a la tarifa reducida.")
+    
+    if any(p in m for p in ["niño", "nene", "bebe", "menor"]):
+        return ("👶 *Menores*\n\n"
+                "• **Menores de 5 años** que viajen en el regazo de un adulto abonan un **seguro mínimo** ($1.852).\n"
+                "• **A partir de los 5 años**, deben pagar pasaje completo.")
+    
+    if any(p in m for p in ["asiento", "sentarme", "lugar", "elegir"]):
+        return ("🪑 *Asignación de asientos*\n\n"
+                "La asignación de asientos es **por orden de llegada**.\n"
+                "Si necesitás un lugar especial (ej. cerca de la puerta por movilidad reducida), avisale al chofer al subir.")
+    
+    if any(p in m for p in ["reclamo", "problema", "queja", "sugerencia"]):
+        return ("🚌 *Reclamos y sugerencias*\n\n"
+                "Podés acercarte a cualquiera de nuestras terminales o escribirnos a este mismo WhatsApp.\n"
+                "Tu opinión nos ayuda a mejorar.")
+    
+    return None
+
 # ============================================
 # WEBHOOK PRINCIPAL
 # ============================================
@@ -883,5 +933,5 @@ def whatsapp_reply():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - VERSIÓN ESTABLE CON AYUDA DETALLADA")
+    print(f"🚀 Bot listo en puerto {port} - VERSIÓN COMPLETA CON AYUDA DETALLADA Y FAQ CORREGIDA")
     app.run(host='0.0.0.0', port=port, debug=False)

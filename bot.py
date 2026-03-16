@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN COMPLETA CON AYUDA DETALLADA Y FAQ CORREGIDA")
+print("🚀 BOT INICIADO - VERSIÓN CORREGIDA (PROXIMO)")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -817,20 +817,28 @@ def whatsapp_reply():
                         msg.body(f"🚌 El primer colectivo de {origen} a {destino} el {fecha_str} sale a las {primer} por {ruta}.")
                     else:
                         msg.body(f"😕 No hay servicios de {origen} a {destino} para {fecha_str}.")
+                
                 elif intencion == "proximo":
                     ahora = ahora_argentina()
                     hora_actual = ahora.hour*60 + ahora.minute
                     resultados = buscar_horarios(origen, destino, tipo_dia, hora_actual)
                     if resultados["R10"] or resultados["R18"]:
-                        prox = "99:99"
-                        ruta = ""
-                        if resultados["R10"] and hora_a_minutos(resultados["R10"][0]) < hora_a_minutos(prox):
-                            prox, ruta = resultados["R10"][0], "R10"
-                        if resultados["R18"] and hora_a_minutos(resultados["R18"][0]) < hora_a_minutos(prox):
-                            prox, ruta = resultados["R18"][0], "R18"
-                        msg.body(f"🚌 El próximo colectivo de {origen} a {destino} sale a las {prox} por {ruta}.")
+                        # Combinar todos los horarios y ordenarlos
+                        todos = []
+                        for h in resultados["R10"]:
+                            todos.append((h, "R10"))
+                        for h in resultados["R18"]:
+                            todos.append((h, "R18"))
+                        todos.sort(key=lambda x: hora_a_minutos(x[0]))
+                        
+                        if todos:
+                            prox_hora, prox_ruta = todos[0]
+                            msg.body(f"🚌 El próximo colectivo de {origen} a {destino} sale a las {prox_hora} por {prox_ruta}.")
+                        else:
+                            msg.body(f"😕 No hay más servicios de {origen} a {destino} hoy.")
                     else:
                         msg.body(f"😕 No hay más servicios de {origen} a {destino} hoy.")
+                
                 elif intencion == "ultimo":
                     if resultados["R10"] or resultados["R18"]:
                         ult = "00:00"
@@ -844,6 +852,7 @@ def whatsapp_reply():
                         msg.body(f"😕 No hay servicios de {origen} a {destino} para {fecha_str}.")
                 else:
                     msg.body(formatear_horarios(resultados, origen, destino, fecha_str))
+                
                 session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
                 return str(resp)
             else:
@@ -883,20 +892,28 @@ def whatsapp_reply():
                     msg.body(f"🚌 El primer colectivo de {origen} a {destino} el {fecha_str} sale a las {primer} por {ruta}.")
                 else:
                     msg.body(f"😕 No hay servicios de {origen} a {destino} para {fecha_str}.")
+            
             elif intencion == "proximo":
                 ahora = ahora_argentina()
                 hora_actual = ahora.hour*60 + ahora.minute
                 resultados = buscar_horarios(origen, destino, tipo_dia, hora_actual)
                 if resultados["R10"] or resultados["R18"]:
-                    prox = "99:99"
-                    ruta = ""
-                    if resultados["R10"] and hora_a_minutos(resultados["R10"][0]) < hora_a_minutos(prox):
-                        prox, ruta = resultados["R10"][0], "R10"
-                    if resultados["R18"] and hora_a_minutos(resultados["R18"][0]) < hora_a_minutos(prox):
-                        prox, ruta = resultados["R18"][0], "R18"
-                    msg.body(f"🚌 El próximo colectivo de {origen} a {destino} sale a las {prox} por {ruta}.")
+                    # Combinar todos los horarios y ordenarlos
+                    todos = []
+                    for h in resultados["R10"]:
+                        todos.append((h, "R10"))
+                    for h in resultados["R18"]:
+                        todos.append((h, "R18"))
+                    todos.sort(key=lambda x: hora_a_minutos(x[0]))
+                    
+                    if todos:
+                        prox_hora, prox_ruta = todos[0]
+                        msg.body(f"🚌 El próximo colectivo de {origen} a {destino} sale a las {prox_hora} por {prox_ruta}.")
+                    else:
+                        msg.body(f"😕 No hay más servicios de {origen} a {destino} hoy.")
                 else:
                     msg.body(f"😕 No hay más servicios de {origen} a {destino} hoy.")
+            
             elif intencion == "ultimo":
                 if resultados["R10"] or resultados["R18"]:
                     ult = "00:00"
@@ -910,6 +927,7 @@ def whatsapp_reply():
                     msg.body(f"😕 No hay servicios de {origen} a {destino} para {fecha_str}.")
             else:
                 msg.body(formatear_horarios(resultados, origen, destino, fecha_str))
+            
             session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
             return str(resp)
 
@@ -933,5 +951,5 @@ def whatsapp_reply():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - VERSIÓN COMPLETA CON AYUDA DETALLADA Y FAQ CORREGIDA")
+    print(f"🚀 Bot listo en puerto {port} - VERSIÓN CORREGIDA (PROXIMO)")
     app.run(host='0.0.0.0', port=port, debug=False)

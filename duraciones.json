@@ -1,0 +1,17 @@
+{
+  "Paraná-Aldea San Antonio": 50,
+  "Paraná-Viale": 65,
+  "Paraná-Tabossi": 85,
+  "Paraná-Estación Sosa": 100,
+  "Paraná-María Grande": 120,
+  "Aldea San Antonio-Viale": 20,
+  "Aldea San Antonio-Tabossi": 40,
+  "Aldea San Antonio-Estación Sosa": 55,
+  "Aldea San Antonio-María Grande": 75,
+  "Viale-Tabossi": 20,
+  "Viale-Estación Sosa": 35,
+  "Viale-María Grande": 55,
+  "Tabossi-Estación Sosa": 15,
+  "Tabossi-María Grande": 35,
+  "Estación Sosa-María Grande": 20
+}

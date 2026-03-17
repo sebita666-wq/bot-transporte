@@ -1,7 +1,6 @@
 {
   "localidades": [
-    { "principal": "Genolet", "alias": ["San Benito", "Colonia Avellaneda"] 
-},
+    { "principal": "Genolet", "alias": ["San Benito", "Colonia Avellaneda"] },
     { "principal": "Sauce", "alias": [] },
     { "principal": "3 Bocas", "alias": ["Tres Bocas"] },
     { "principal": "Quebracho", "alias": [] },
@@ -10,8 +9,7 @@
     { "principal": "Tabossi", "alias": [] },
     { "principal": "Estación Sosa", "alias": ["Est. Sosa", "Sosa"] },
     { "principal": "María Grande", "alias": ["Maria Grande", "M. Grande"] },
-    { "principal": "Paraje de las Piedras", "alias": ["P. de las Piedras", 
-"Paraje Las Piedras"] },
+    { "principal": "Paraje de las Piedras", "alias": ["P. de las Piedras", "Paraje Las Piedras"] },
     { "principal": "Arroyo Carmona", "alias": ["A. Carmona", "Carmona"] },
     { "principal": "Sauce Montrull", "alias": ["Sauce Montrul"] },
     { "principal": "Paraná", "alias": ["Parana"] }
@@ -26,12 +24,13 @@
     [1852,3828,4224,5940,6996,7920,8316,7788,7128,10692,11484,12804,9106],
     [1852,2508,3960,5280,6732,7524,7788,9372,8712,11220,12012,13332,9372],
     [1852,2300,3168,3960,5412,6732,7128,8712,9900,10296,11088,12408,9900],
-    
-[1852,2772,5412,7920,9768,10296,10692,11220,10296,12144,12936,14256,12144],
-    
-[1852,3960,5808,8580,10560,11088,11484,12012,11088,12936,14784,16104,14784],
-    
-[1852,4488,7128,9900,11880,12408,12804,13332,12408,14256,16104,16632,16632],
+    [1852,2772,5412,7920,9768,10296,10692,11220,10296,12144,12936,14256,12144],
+    [1852,3960,5808,8580,10560,11088,11484,12012,11088,12936,14784,16104,14784],
+    [1852,4488,7128,9900,11880,12408,12804,13332,12408,14256,16104,16632,16632],
     [1852,2100,2244,3432,5148,7524,9106,9372,9900,12144,14784,16632,19272]
-  ]
+  ],
+  "precios_especiales": {
+    "Paraná-María Grande": { "R10": 8580, "R18": 9900 },
+    "María Grande-Paraná": { "R10": 8580, "R18": 9900 }
+  }
 }

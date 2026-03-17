@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN CON DATOS EXTERNOS (horarios.json y tarifas.json)")
+print("🚀 BOT INICIADO - VERSIÓN CON DATOS EXTERNOS (horarios.json, tarifas.json, feriados.json)")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -31,14 +31,34 @@ def ahora_argentina():
     return datetime.now(timezone)
 
 # ============================================
-# FERIADOS NACIONALES 2026
+# VALIDAR ARCHIVOS JSON
 # ============================================
-FERIADOS_NACIONALES = [
-    "2026-01-01", "2026-02-16", "2026-02-17", "2026-03-24", "2026-04-02",
-    "2026-04-03", "2026-05-01", "2026-05-25", "2026-06-15", "2026-06-20",
-    "2026-07-09", "2026-08-17", "2026-10-12", "2026-11-23", "2026-12-08",
-    "2026-12-25"
-]
+def validar_archivos_json():
+    archivos = ['horarios.json', 'tarifas.json', 'feriados.json']
+    for archivo in archivos:
+        if not os.path.exists(archivo):
+            print(f"❌ ERROR: No se encuentra el archivo {archivo}")
+            return False
+    print("✅ Todos los archivos JSON están presentes")
+    return True
+
+if not validar_archivos_json():
+    print("❌ No se puede iniciar el bot. Faltan archivos.")
+    exit(1)
+
+# ============================================
+# CARGAR FERIADOS DESDE JSON
+# ============================================
+def cargar_feriados():
+    try:
+        with open('feriados.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data.get('feriados_2026', [])
+    except Exception as e:
+        print(f"❌ Error cargando feriados.json: {e}")
+        return []
+
+FERIADOS_NACIONALES = cargar_feriados()
 
 def es_feriado_nacional(fecha):
     return fecha.strftime("%Y-%m-%d") in FERIADOS_NACIONALES
@@ -73,16 +93,17 @@ def cargar_tarifas():
             return json.load(f)
     except Exception as e:
         print(f"❌ Error cargando tarifas.json: {e}")
-        return {"localidades": [], "matriz_precios": []}
+        return {"localidades": [], "matriz_precios": [], "precios_especiales": {}}
 
 # Cargar datos al iniciar
 horarios_habiles, horarios_sabados, horarios_domingos = cargar_horarios()
 tarifas_data = cargar_tarifas()
 localidades = tarifas_data.get('localidades', [])
 matriz_precios = tarifas_data.get('matriz_precios', [])
+precios_especiales = tarifas_data.get('precios_especiales', {})
 
 print(f"✅ Horarios cargados: hábiles={len(horarios_habiles)}, sábados={len(horarios_sabados)}, domingos={len(horarios_domingos)}")
-print(f"✅ Tarifas cargadas: {len(localidades)} localidades")
+print(f"✅ Tarifas cargadas: {len(localidades)} localidades, {len(precios_especiales)} precios especiales")
 
 # ============================================
 # FUNCIONES DE NORMALIZACIÓN
@@ -237,7 +258,7 @@ def interpretar_fecha(mensaje):
     return hoy
 
 # ============================================
-# FUNCIÓN DE PRECIOS
+# FUNCIÓN DE PRECIOS (ACTUALIZADA)
 # ============================================
 def obtener_precio(origen, destino):
     try:
@@ -245,8 +266,13 @@ def obtener_precio(origen, destino):
         d_norm = normalizar_localidad(destino)
         if not o_norm or not d_norm:
             return None
-        if (o_norm == "María Grande" and d_norm == "Paraná") or (o_norm == "Paraná" and d_norm == "María Grande"):
-            return {"R10": 8580, "R18": 9900}
+
+        # Verificar si es un precio especial
+        clave = f"{o_norm}-{d_norm}"
+        if clave in precios_especiales:
+            return precios_especiales[clave]
+
+        # Si no, matriz normal
         indices = {loc["principal"]: i for i, loc in enumerate(localidades)}
         return matriz_precios[indices[o_norm]][indices[d_norm]]
     except:
@@ -512,6 +538,7 @@ def whatsapp_reply():
             if origen and destino:
                 precio = obtener_precio(origen, destino)
                 if isinstance(precio, dict):
+                    # Caso especial: María Grande con dos precios
                     msg.body(f"💰 El pasaje de {origen} a {destino} tiene dos precios:\n\n🛣️ Ruta 10: $8.580\n🛣️ Ruta 18: $9.900")
                 elif precio:
                     msg.body(f"💰 El pasaje de {origen} a {destino} cuesta **${precio}**.")

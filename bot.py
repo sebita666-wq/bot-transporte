@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN FINAL CON TODAS LAS MEJORAS")
+print("🚀 BOT INICIADO - VERSIÓN FINAL CON AYUDA CORTA Y PROMPTS CORREGIDOS")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -351,7 +351,7 @@ def buscar_horarios(origen, destino, tipo, hora_limite=None):
 def formatear_horarios(resultados, origen, destino, fecha_str):
     """
     Formatea la respuesta de horarios de manera clara para el pasajero,
-    incluyendo la duración del viaje si está disponible.
+    separando por tipo de ruta.
     """
     if not any(resultados.values()):
         return f"😕 No encontré servicios de {origen} a {destino} para {fecha_str}."
@@ -361,17 +361,17 @@ def formatear_horarios(resultados, origen, destino, fecha_str):
     
     texto = f"🚌 Servicios de {origen} a {destino}{duracion_str} para {fecha_str}:\n\n"
     
-    if resultados["R18"]:
-        texto += "🛣️ *Por Ruta 18 (vía Viale, Tabossi, Sosa)*:\n"
-        texto += "\n".join([f"• {h}" for h in resultados["R18"]]) + "\n\n"
+    if resultados["R10+R18"]:
+        texto += "🛣️ *Por Ruta 10 + Ruta 18:*\n"
+        texto += "\n".join([f"• {h}" for h in resultados["R10+R18"]]) + "\n\n"
     
     if resultados["R10"]:
-        texto += "🛣️ *Por Ruta 10 (directo a María Grande)*:\n"
+        texto += "🛣️ *Por Ruta 10:*\n"
         texto += "\n".join([f"• {h}" for h in resultados["R10"]]) + "\n\n"
     
-    if resultados["R10+R18"]:
-        texto += "🛣️ *Por Ruta 10 + R18 (Paraná → María Grande directo, luego a Sosa/Tabossi)*:\n"
-        texto += "\n".join([f"• {h}" for h in resultados["R10+R18"]]) + "\n\n"
+    if resultados["R18"]:
+        texto += "🛣️ *Por Ruta 18:*\n"
+        texto += "\n".join([f"• {h}" for h in resultados["R18"]]) + "\n\n"
     
     texto += "😊 ¿Necesitas precio, próximo o último?"
     return texto
@@ -398,45 +398,31 @@ def mostrar_menu():
 
 def mostrar_ayuda_detallada():
     return (
-        "📘 *GUÍA COMPLETA DE USO DEL BOT*\n\n"
-        "✅ *FRASES QUE SÍ FUNCIONAN:*\n"
+        "📘 *GUÍA DE USO DEL BOT*\n\n"
+        "✅ *EJEMPLOS:*\n"
         "• 'De Parana a Viale'\n"
-        "• 'Parana a Viale'\n"
         "• 'Precio de Parana a Maria Grande'\n"
         "• 'Primer colectivo de Viale a Parana'\n"
         "• 'Próximo de Tabossi a Parana'\n"
         "• 'Último de Parana a Sosa el 17/03'\n"
         "• 'Horarios de Parana a Tabossi después de las 15'\n\n"
         
-        "🛣️ *TIPOS DE VIAJE:*\n"
-        "• *Ruta 18:* Paraná → Aldea San Antonio → Viale → Tabossi → Sosa → María Grande (y vuelta)\n"
-        "• *Ruta 10:* Paraná ↔ María Grande (directo, sin paradas intermedias)\n"
-        "• *Mixtos:* Paraná → María Grande (R10) → Sosa/Tabossi (R18) – ideal para llegar a Sosa o Tabossi más rápido\n\n"
+        "🛣️ *RUTAS:*\n"
+        "• *Ruta 18:* Paraná → Viale → Tabossi → Sosa → María Grande\n"
+        "• *Ruta 10:* Paraná ↔ María Grande (directo)\n"
+        "• *Ruta 10 + 18:* Paraná → María Grande (R10) → Sosa/Tabossi (R18)\n\n"
         
-        "📍 *LOCALIDADES VÁLIDAS:*\n"
-        "Parana, Viale, Tabossi, Sosa, Maria Grande, Genolet, Sauce, 3 Bocas, Quebracho, El Ramblón, Aldea San Antonio, Paraje de las Piedras, Arroyo Carmona, Sauce Montrull\n\n"
+        "📍 *LOCALIDADES:*\n"
+        "Parana, Viale, Tabossi, Sosa, Maria Grande, Aldea San Antonio, Genolet, Sauce, 3 Bocas, Quebracho, El Ramblón, Paraje de las Piedras, Arroyo Carmona, Sauce Montrull\n\n"
         
-        "❌ *FRASES QUE NO FUNCIONAN (ERRORES COMUNES):*\n"
-        "• 'Parana Viale' → ❌ Falta la palabra 'a'\n"
-        "• 'Quiero ir a Viale' → ❌ Falta el origen\n"
-        "• 'De Parana a Buenos Aires' → ❌ Localidad no válida\n"
-        "• 'Primero' → ❌ Falta origen y destino\n"
-        "• 'Precio' → ❌ Falta origen y destino\n\n"
+        "❌ *ERRORES COMUNES:*\n"
+        "• 'Parana Viale' → falta 'a'\n"
+        "• 'Quiero ir a Viale' → falta origen\n"
+        "• 'Primero' → falta origen/destino\n\n"
         
-        "💡 *CONSEJOS PARA EVITAR ERRORES:*\n"
-        "• Usá siempre el formato *'De X a Y'* o *'X a Y'*\n"
-        "• Podés escribir con o sin tildes (ej: 'Maria' funciona igual que 'María')\n"
-        "• Para fechas específicas, usá formato *'17/03'* o *'17 de marzo'*\n"
-        "• Viale solo tiene servicios por *Ruta 18* (los viajes por R10 no pasan por Viale)\n\n"
-        
-        "📌 *EJEMPLOS DE CONSULTAS AVANZADAS:*\n"
-        "• 'Cual es el primer colectivo de Parana a Viale el 20/03'\n"
-        "• 'El próximo de Maria Grande a Parana'\n"
-        "• 'Último de Tabossi a Parana mañana'\n"
-        "• 'Precio de Genolet a Sauce'\n"
-        "• 'Horarios de Parana a Sosa' (te muestra R18 y R10+R18)\n\n"
-        
-        "👋 *Escribí 'Hola' para volver al menú principal.*"
+        "💡 *TIP:* Usá 'De X a Y' o 'X a Y'\n"
+        "📅 Fechas: '17/03' o '17 de marzo'\n"
+        "👋 Escribí 'Hola' para volver al menú."
     )
 
 def no_entendido_inteligente(mensaje):
@@ -1012,5 +998,5 @@ def whatsapp_reply():
 # ============================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - VERSIÓN FINAL CON TODAS LAS MEJORAS")
+    print(f"🚀 Bot listo en puerto {port} - VERSIÓN FINAL")
     app.run(host='0.0.0.0', port=port, debug=False)

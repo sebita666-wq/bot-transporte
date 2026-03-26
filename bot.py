@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN FINAL CON AYUDA CORTA Y PROMPTS CORREGIDOS")
+print("🚀 BOT INICIADO - VERSIÓN CON FLUVIALES SMART")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -112,6 +112,33 @@ duraciones = cargar_duraciones()
 print(f"✅ Horarios cargados: hábiles={len(horarios_habiles)}, sábados={len(horarios_sabados)}, domingos={len(horarios_domingos)}")
 print(f"✅ Tarifas cargadas: {len(localidades)} localidades, {len(precios_especiales)} precios especiales")
 print(f"✅ Duraciones cargadas: {len(duraciones)} tramos")
+
+# ============================================
+# FUNCIONES PARA USUARIOS SMART
+# ============================================
+def cargar_premium():
+    try:
+        with open('premium.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"⚠️ Error cargando premium.json: {e}")
+        return {}
+
+def es_smart(sender):
+    """Verifica si un usuario tiene plan SMART activo"""
+    premium = cargar_premium()
+    usuario = premium.get(sender)
+    if usuario and usuario.get('activo', False):
+        # Verificar si no está vencido
+        if usuario.get('vencimiento'):
+            try:
+                fecha_venc = datetime.strptime(usuario['vencimiento'], "%Y-%m-%d")
+                if fecha_venc < ahora_argentina():
+                    return False
+            except:
+                pass
+        return True
+    return False
 
 # ============================================
 # FUNCIONES DE NORMALIZACIÓN
@@ -394,6 +421,22 @@ def mostrar_menu():
         "• 'Próximo de Tabossi a Parana'\n"
         "• 'Último de Parana a Sosa el 17/03'\n\n"
         "💬 *Escribí 'Ayuda' si querés más detalles.*"
+    )
+
+def mostrar_menu_smart():
+    return (
+        "👋 *Hola! Soy el asistente virtual de Empresa Fluviales* 🚌\n\n"
+        "✨ *Eres usuario Fluviales SMART* ✨\n\n"
+        "🔹 *1* → Ver horarios de colectivos\n"
+        "🔹 *2* → Consultar precios de pasajes\n"
+        "🔹 *3* → Información útil\n"
+        "🔹 *4* → Preguntas frecuentes\n"
+        "🔹 *5* → *🎤 Mensaje de voz* (próximamente)\n"
+        "🔹 *6* → *📍 Ubicación en tiempo real* (próximamente)\n\n"
+        "📝 *También podés escribir directamente:*\n"
+        "• 'De Parana a Viale'\n"
+        "• 'Precio de Parana a Maria Grande'\n\n"
+        "💬 *Escribí 'Ayuda' para más detalles.*"
     )
 
 def mostrar_ayuda_detallada():
@@ -704,7 +747,10 @@ def whatsapp_reply():
         # ============================================
         if incoming_msg.lower() in ["hola", "buenos dias", "buenas tardes"]:
             print("✅ Saludo")
-            msg.body(mostrar_menu())
+            if es_smart(sender):
+                msg.body(mostrar_menu_smart())
+            else:
+                msg.body(mostrar_menu())
             return str(resp)
 
         if incoming_msg.lower() == "ayuda":
@@ -998,5 +1044,5 @@ def whatsapp_reply():
 # ============================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - VERSIÓN FINAL")
+    print(f"🚀 Bot listo en puerto {port} - VERSIÓN CON FLUVIALES SMART")
     app.run(host='0.0.0.0', port=port, debug=False)

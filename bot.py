@@ -772,7 +772,15 @@ def whatsapp_reply():
         # ============================================
         if any(p in incoming_msg.lower() for p in ["chau", "adiós", "adios", "bye", "gracias"]):
             print("✅ Despedida")
-            session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
+
+            # Guardar el contexto pero volver al menú
+                ctx["ultimo_origen"] = origen
+                ctx["ultimo_destino"] = destino
+                ctx["estado"] = "menu"
+                ctx["intencion"] = None
+                ctx["fecha_pendiente"] = fecha
+                session[sender] = ctx
+
             msg.body(despedida())
             return str(resp)
 

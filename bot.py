@@ -20,7 +20,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN CON CONTEXTO CORREGIDO")
+print("🚀 BOT INICIADO - VERSIÓN CON SUGERENCIAS FLEXIBLES")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -619,7 +619,7 @@ def guardar_stats(stats):
         json.dump(stats, f, indent=2)
 
 def registrar_interaccion(sender, mensaje, tipo=None, consulta=None, horario=None):
-    """Registra interacción del usuario con estadísticas mejoradas (corregido)"""
+    """Registra interacción del usuario con estadísticas mejoradas"""
     stats = cargar_stats()
     ahora = ahora_argentina().strftime("%Y-%m-%d %H:%M:%S")
     
@@ -768,7 +768,7 @@ def whatsapp_reply():
             return str(resp)
 
         # ============================================
-        # DESPEDIDA (CORREGIDA)
+        # DESPEDIDA
         # ============================================
         if any(p in incoming_msg.lower() for p in ["chau", "adiós", "adios", "bye", "gracias"]):
             print("✅ Despedida")
@@ -814,7 +814,7 @@ def whatsapp_reply():
             return str(resp)
 
         # ============================================
-        # PROCESAR SUGERENCIA / RECLAMO
+        # PROCESAR SUGERENCIA / RECLAMO (VERSIÓN FLEXIBLE)
         # ============================================
         if ctx.get("estado") == "esperando_sugerencia":
             if incoming_msg.lower() == "cancelar":
@@ -823,17 +823,30 @@ def whatsapp_reply():
                 msg.body(mostrar_menu())
                 return str(resp)
             
-            # Intentar extraer teléfono y mensaje
+            # Intentar extraer teléfono y mensaje (formato flexible)
             lineas = incoming_msg.split('\n')
             telefono = None
             mensaje_texto = None
             
             for linea in lineas:
                 linea = linea.strip()
+                # Buscar línea que comience con "teléfono" o "telefono" (case insensitive)
                 if linea.lower().startswith("teléfono:") or linea.lower().startswith("telefono:"):
                     telefono = linea.split(':', 1)[1].strip()
+                # Buscar línea que comience con "mensaje" (case insensitive)
                 elif linea.lower().startswith("mensaje:"):
                     mensaje_texto = linea.split(':', 1)[1].strip()
+            
+            # También puede venir en una sola línea con formato "Teléfono: X, Mensaje: Y"
+            if not telefono or not mensaje_texto:
+                # Buscar con regex más flexible
+                import re
+                match_telefono = re.search(r'(?:tel[eé]fono:?)\s*(\d+)', incoming_msg, re.IGNORECASE)
+                match_mensaje = re.search(r'(?:mensaje:?)\s*(.+?)(?:\s*(?:gracias|$))', incoming_msg, re.IGNORECASE)
+                if match_telefono:
+                    telefono = match_telefono.group(1)
+                if match_mensaje:
+                    mensaje_texto = match_mensaje.group(1).strip()
             
             if telefono and mensaje_texto:
                 if guardar_sugerencia(telefono, mensaje_texto):
@@ -874,7 +887,6 @@ def whatsapp_reply():
                     msg.body(f"💰 El pasaje de {origen} a {destino} cuesta **${precio}**.")
                 else:
                     msg.body(f"😕 No tengo precio de {origen} a {destino}.")
-                # Guardar contexto
                 ctx["ultimo_origen"] = origen
                 ctx["ultimo_destino"] = destino
                 ctx["estado"] = "menu"
@@ -976,7 +988,6 @@ def whatsapp_reply():
                 else:
                     msg.body(f"😕 No tengo precio de {origen} a {destino}.")
                 registrar_interaccion(sender, incoming_msg, tipo="precio", consulta=f"{origen}→{destino}")
-                # Guardar contexto
                 ctx["ultimo_origen"] = origen
                 ctx["ultimo_destino"] = destino
                 ctx["estado"] = "menu"
@@ -1189,5 +1200,5 @@ def whatsapp_reply():
 # ============================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - VERSIÓN CON CONTEXTO CORREGIDO")
+    print(f"🚀 Bot listo en puerto {port} - VERSIÓN CON SUGERENCIAS FLEXIBLES")
     app.run(host='0.0.0.0', port=port, debug=False)

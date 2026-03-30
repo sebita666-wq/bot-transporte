@@ -6,6 +6,7 @@ import re
 import json
 import os
 import traceback
+from collections import Counter
 
 app = Flask(__name__)
 app.permanent_session_lifetime = timedelta(minutes=3)
@@ -19,7 +20,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN PRUEBA")
+print("🚀 BOT INICIADO - VERSIÓN CON ESTADÍSTICAS MEJORADAS")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -598,7 +599,7 @@ def responder_faq(mensaje):
     return None
 
 # ============================================
-# ESTADÍSTICAS
+# ESTADÍSTICAS MEJORADAS
 # ============================================
 def cargar_stats():
     if os.path.exists(STATS_FILE):
@@ -617,7 +618,8 @@ def guardar_stats(stats):
     with open(STATS_FILE, 'w') as f:
         json.dump(stats, f, indent=2)
 
-def registrar_interaccion(sender, mensaje, tipo=None):
+def registrar_interaccion(sender, mensaje, tipo=None, consulta=None, horario=None):
+    """Registra interacción del usuario con estadísticas mejoradas"""
     stats = cargar_stats()
     ahora = ahora_argentina().strftime("%Y-%m-%d %H:%M:%S")
     
@@ -626,7 +628,9 @@ def registrar_interaccion(sender, mensaje, tipo=None):
             "primer_contacto": ahora,
             "ultimo_contacto": ahora,
             "mensajes": 1,
-            "consultas": [tipo] if tipo else []
+            "consultas": [tipo] if tipo else [],
+            "destinos_consultados": [],
+            "horarios_consultados": []
         }
         stats["metricas"]["total_usuarios_unicos"] += 1
         print(f"📊 Nuevo usuario: {sender}")
@@ -635,6 +639,11 @@ def registrar_interaccion(sender, mensaje, tipo=None):
         stats["usuarios"][sender]["mensajes"] += 1
         if tipo and tipo not in stats["usuarios"][sender]["consultas"]:
             stats["usuarios"][sender]["consultas"].append(tipo)
+    
+    if consulta:
+        stats["usuarios"][sender]["destinos_consultados"].append(consulta)
+    if horario:
+        stats["usuarios"][sender]["horarios_consultados"].append(horario)
     
     stats["metricas"]["total_mensajes"] += 1
     guardar_stats(stats)
@@ -663,6 +672,24 @@ def resumen_stats():
         "ultimo_reinicio": stats["metricas"]["ultimo_reinicio"]
     }
 
+def destinos_mas_frecuentes():
+    """Devuelve los 5 destinos más consultados"""
+    stats = cargar_stats()
+    destinos = []
+    for usuario, datos in stats["usuarios"].items():
+        destinos.extend(datos.get("destinos_consultados", []))
+    contador = Counter(destinos)
+    return contador.most_common(5)
+
+def horarios_mas_consultados():
+    """Devuelve los 5 horarios más consultados"""
+    stats = cargar_stats()
+    horarios = []
+    for usuario, datos in stats["usuarios"].items():
+        horarios.extend(datos.get("horarios_consultados", []))
+    contador = Counter(horarios)
+    return contador.most_common(5)
+
 # ============================================
 # WEBHOOK PRINCIPAL
 # ============================================
@@ -673,7 +700,7 @@ def whatsapp_reply():
         sender = request.values.get('From', '')
         print(f"\n📩 MENSAJE RECIBIDO: '{incoming_msg}' de {sender}")
 
-        # Registrar interacción
+        # Registrar interacción básica (sin tipo aún)
         registrar_interaccion(sender, incoming_msg)
 
         resp = MessagingResponse()
@@ -684,18 +711,26 @@ def whatsapp_reply():
         ctx = session[sender]
 
         # ============================================
-        # COMANDO DUEÑO
+        # COMANDO DUEÑO - ESTADÍSTICAS MEJORADAS
         # ============================================
         if incoming_msg.lower() == "/estadisticas" and sender == NUMERO_DUENIO:
             print("✅ Comando: estadísticas")
             r = resumen_stats()
+            top_destinos = destinos_mas_frecuentes()
+            top_horarios = horarios_mas_consultados()
+            
+            texto_destinos = "\n".join([f"• {d}: {c}" for d, c in top_destinos]) if top_destinos else "• (sin datos)"
+            texto_horarios = "\n".join([f"• {h}: {c}" for h, c in top_horarios]) if top_horarios else "• (sin datos)"
+            
             msg.body(
                 f"📊 *ESTADÍSTICAS*\n\n"
                 f"👥 Usuarios únicos: {r['total_usuarios']}\n"
                 f"💬 Mensajes totales: {r['total_mensajes']}\n"
                 f"📅 Usuarios hoy: {r['usuarios_hoy']}\n"
                 f"📆 Usuarios última semana: {r['usuarios_semana']}\n"
-                f"🔄 Último reinicio: {r['ultimo_reinicio']}"
+                f"🔄 Último reinicio: {r['ultimo_reinicio']}\n\n"
+                f"🔥 *Destinos más consultados:*\n{texto_destinos}\n\n"
+                f"⏰ *Horarios más consultados:*\n{texto_horarios}"
             )
             return str(resp)
 
@@ -866,6 +901,9 @@ def whatsapp_reply():
                 else:
                     msg.body(formatear_horarios(resultados, origen, destino, fecha_str))
                 
+                # Registrar consulta de horarios para estadísticas
+                registrar_interaccion(sender, incoming_msg, tipo="horarios", consulta=f"{origen}→{destino}")
+                
                 session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
                 return str(resp)
             else:
@@ -894,6 +932,7 @@ def whatsapp_reply():
                     msg.body(f"💰 El pasaje de {origen} a {destino} cuesta **${precio}**.")
                 else:
                     msg.body(f"😕 No tengo precio de {origen} a {destino}.")
+                registrar_interaccion(sender, incoming_msg, tipo="precio", consulta=f"{origen}→{destino}")
                 session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
                 return str(resp)
             
@@ -909,6 +948,7 @@ def whatsapp_reply():
                             primer, ruta = resultados[r][0], r
                     fecha_str = fecha.strftime("%d/%m/%Y")
                     msg.body(f"🚌 El primer colectivo de {origen} a {destino} el {fecha_str} sale a las {primer} por {ruta}.")
+                    registrar_interaccion(sender, incoming_msg, tipo="primer", consulta=f"{origen}→{destino}", horario=primer)
                 else:
                     msg.body(f"😕 No hay servicios de {origen} a {destino} para esa fecha.")
                 session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
@@ -930,6 +970,7 @@ def whatsapp_reply():
                     if todos:
                         prox_hora, prox_ruta = todos[0]
                         msg.body(f"🚌 El próximo colectivo de {origen} a {destino} sale a las {prox_hora} por {prox_ruta}.")
+                        registrar_interaccion(sender, incoming_msg, tipo="proximo", consulta=f"{origen}→{destino}", horario=prox_hora)
                     else:
                         msg.body(f"😕 No hay más servicios de {origen} a {destino} hoy.")
                 else:
@@ -949,6 +990,7 @@ def whatsapp_reply():
                             ult, ruta = resultados[r][-1], r
                     fecha_str = fecha.strftime("%d/%m/%Y")
                     msg.body(f"🚌 El último colectivo de {origen} a {destino} el {fecha_str} sale a las {ult} por {ruta}.")
+                    registrar_interaccion(sender, incoming_msg, tipo="ultimo", consulta=f"{origen}→{destino}", horario=ult)
                 else:
                     msg.body(f"😕 No hay servicios de {origen} a {destino} para esa fecha.")
                 session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
@@ -961,6 +1003,7 @@ def whatsapp_reply():
                 resultados = buscar_horarios(origen, destino, tipo_dia, hora_limite)
                 fecha_str = fecha.strftime("%d/%m/%Y")
                 msg.body(formatear_horarios(resultados, origen, destino, fecha_str))
+                registrar_interaccion(sender, incoming_msg, tipo="horarios", consulta=f"{origen}→{destino}")
                 session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
                 return str(resp)
 
@@ -1007,6 +1050,7 @@ def whatsapp_reply():
                     msg.body(f"💰 El pasaje de {o} a {d} cuesta **${precio}**.")
                 else:
                     msg.body(f"😕 No tengo precio de {o} a {d}.")
+                registrar_interaccion(sender, incoming_msg, tipo="precio", consulta=f"{o}→{d}")
                 return str(resp)
             
             if any(p in incoming_msg.lower() for p in ["primer", "primero"]):
@@ -1019,6 +1063,7 @@ def whatsapp_reply():
                         if resultados[r] and hora_a_minutos(resultados[r][0]) < hora_a_minutos(primer):
                             primer, ruta = resultados[r][0], r
                     msg.body(f"🚌 El primer colectivo de {o} a {d} sale a las {primer} por {ruta}.")
+                    registrar_interaccion(sender, incoming_msg, tipo="primer", consulta=f"{o}→{d}", horario=primer)
                 else:
                     msg.body(f"😕 No hay servicios de {o} a {d} hoy.")
                 return str(resp)
@@ -1038,6 +1083,7 @@ def whatsapp_reply():
                     if todos:
                         prox_hora, prox_ruta = todos[0]
                         msg.body(f"🚌 El próximo colectivo de {o} a {d} sale a las {prox_hora} por {prox_ruta}.")
+                        registrar_interaccion(sender, incoming_msg, tipo="proximo", consulta=f"{o}→{d}", horario=prox_hora)
                     else:
                         msg.body(f"😕 No hay más servicios de {o} a {d} hoy.")
                 else:
@@ -1054,6 +1100,7 @@ def whatsapp_reply():
                         if resultados[r] and hora_a_minutos(resultados[r][-1]) > hora_a_minutos(ult):
                             ult, ruta = resultados[r][-1], r
                     msg.body(f"🚌 El último colectivo de {o} a {d} sale a las {ult} por {ruta}.")
+                    registrar_interaccion(sender, incoming_msg, tipo="ultimo", consulta=f"{o}→{d}", horario=ult)
                 else:
                     msg.body(f"😕 No hay servicios de {o} a {d} hoy.")
                 return str(resp)
@@ -1078,5 +1125,5 @@ def whatsapp_reply():
 # ============================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - VERSIÓN PRUEBA")
+    print(f"🚀 Bot listo en puerto {port} - VERSIÓN CON ESTADÍSTICAS MEJORADAS")
     app.run(host='0.0.0.0', port=port, debug=False)

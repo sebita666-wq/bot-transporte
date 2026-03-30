@@ -19,11 +19,12 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN FINAL CON AYUDA CORTA Y PROMPTS CORREGIDOS")
+print("🚀 BOT INICIADO - VERSIÓN PRUEBA")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
 STATS_FILE = 'estadisticas.json'
+SUGERENCIAS_FILE = 'sugerencias.json'
 
 app.secret_key = SECRET_KEY
 
@@ -112,6 +113,31 @@ duraciones = cargar_duraciones()
 print(f"✅ Horarios cargados: hábiles={len(horarios_habiles)}, sábados={len(horarios_sabados)}, domingos={len(horarios_domingos)}")
 print(f"✅ Tarifas cargadas: {len(localidades)} localidades, {len(precios_especiales)} precios especiales")
 print(f"✅ Duraciones cargadas: {len(duraciones)} tramos")
+
+# ============================================
+# FUNCIONES PARA SUGERENCIAS
+# ============================================
+def guardar_sugerencia(telefono, mensaje):
+    """Guarda una sugerencia en el archivo sugerencias.json"""
+    try:
+        sugerencias = []
+        if os.path.exists(SUGERENCIAS_FILE):
+            with open(SUGERENCIAS_FILE, 'r', encoding='utf-8') as f:
+                sugerencias = json.load(f)
+        
+        sugerencias.append({
+            "fecha": ahora_argentina().strftime("%Y-%m-%d %H:%M:%S"),
+            "telefono": telefono,
+            "mensaje": mensaje
+        })
+        
+        with open(SUGERENCIAS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(sugerencias, f, indent=2, ensure_ascii=False)
+        
+        return True
+    except Exception as e:
+        print(f"❌ Error guardando sugerencia: {e}")
+        return False
 
 # ============================================
 # FUNCIONES DE NORMALIZACIÓN
@@ -379,14 +405,22 @@ def formatear_horarios(resultados, origen, destino, fecha_str):
 # ============================================
 # FUNCIONES DE RESPUESTA
 # ============================================
+def mostrar_mensaje_bienvenida():
+    return (
+        "🚌 *Este bot se encuentra en etapa de desarrollo.*\n\n"
+        "Los horarios han sido chequeados para su tranquilidad, pero pueden estar sujetos a modificaciones por parte de la empresa.\n\n"
+        "✨ *¡Gracias por formar parte de esta etapa de prueba!* ✨"
+    )
+
 def mostrar_menu():
     return (
-        "👋 *Hola! Soy el asistente virtual de Empresa Fluviales* 🚌\n\n"
+        "👋 *Hola! Soy el asistente virtual de la Empresa de viajes* 🚌\n\n"
         "¿Qué querés hacer hoy?\n\n"
         "🔹 *1* → Ver horarios de colectivos\n"
         "🔹 *2* → Consultar precios de pasajes\n"
         "🔹 *3* → Información útil (terminales, teléfono)\n"
-        "🔹 *4* → Preguntas frecuentes (equipaje, mascotas, etc.)\n\n"
+        "🔹 *4* → Preguntas frecuentes (equipaje, mascotas, etc.)\n"
+        "🔹 *5* → 📝 Enviar sugerencia\n\n"
         "📝 *También podés escribir directamente:*\n"
         "• 'De Parana a Viale'\n"
         "• 'Precio de Parana a Maria Grande'\n"
@@ -394,6 +428,18 @@ def mostrar_menu():
         "• 'Próximo de Tabossi a Parana'\n"
         "• 'Último de Parana a Sosa el 17/03'\n\n"
         "💬 *Escribí 'Ayuda' si querés más detalles.*"
+    )
+
+def mostrar_menu_sugerencia():
+    return (
+        "📝 *Envío de sugerencias*\n\n"
+        "Por favor, escribí tu sugerencia en el siguiente formato:\n\n"
+        "*Teléfono:* Tu número\n"
+        "*Sugerencia:* Tu mensaje\n\n"
+        "📌 *Ejemplo:*\n"
+        "Teléfono: 3435123456\n"
+        "Sugerencia: El horario de las 17:15 debería pasar por Tabossi\n\n"
+        "✍️ *Escribí 'Cancelar' para volver al menú.*"
     )
 
 def mostrar_ayuda_detallada():
@@ -497,14 +543,13 @@ def mostrar_info_util():
         "📍 *Terminal Viale:* (pendiente)\n\n"
         "📞 *Teléfono de contacto:* 343 456-7890\n"
         "⏰ *Atención:* Lun a Dom 6:00 a 22:00\n\n"
-        "🌐 *Web:* www.fluviales.com.ar"
+        "🌐 *Web:* (próximamente)"
     )
 
 def despedida():
     return (
         "😊 *¡Gracias por consultar!*\n\n"
-        "Si necesitás algo más, ya sabés dónde encontrarme.\n"
-        "Escribí *'Hola'* para empezar de nuevo."
+        "Si necesitás algo más, escribí 'Hola' para empezar de nuevo."
     )
 
 def responder_faq(mensaje):
@@ -698,13 +743,64 @@ def whatsapp_reply():
             print("✅ Opción 4: Preguntas frecuentes")
             msg.body(mostrar_faq())
             return str(resp)
+        if incoming_msg == "5":
+            print("✅ Opción 5: Sugerencias")
+            ctx["estado"] = "esperando_sugerencia"
+            session[sender] = ctx
+            msg.body(mostrar_menu_sugerencia())
+            return str(resp)
 
         # ============================================
-        # SALUDO
+        # PROCESAR SUGERENCIA
+        # ============================================
+        if ctx.get("estado") == "esperando_sugerencia":
+            if incoming_msg.lower() == "cancelar":
+                ctx["estado"] = "menu"
+                session[sender] = ctx
+                msg.body(mostrar_menu())
+                return str(resp)
+            
+            # Intentar extraer teléfono y sugerencia
+            lineas = incoming_msg.split('\n')
+            telefono = None
+            sugerencia_texto = None
+            
+            for linea in lineas:
+                linea = linea.strip()
+                if linea.lower().startswith("teléfono:") or linea.lower().startswith("telefono:"):
+                    telefono = linea.split(':', 1)[1].strip()
+                elif linea.lower().startswith("sugerencia:"):
+                    sugerencia_texto = linea.split(':', 1)[1].strip()
+            
+            if telefono and sugerencia_texto:
+                if guardar_sugerencia(telefono, sugerencia_texto):
+                    msg.body("✅ *¡Gracias por tu sugerencia!*\n\nAyuda a mejorar el servicio. Volviendo al menú principal...")
+                else:
+                    msg.body("❌ *Error al guardar la sugerencia.*\nPor favor, intentá de nuevo más tarde.")
+                ctx["estado"] = "menu"
+                session[sender] = ctx
+                msg.body(mostrar_menu())
+                return str(resp)
+            else:
+                msg.body("📝 *Formato incorrecto.*\n\nUsá el formato:\nTeléfono: tu número\nSugerencia: tu mensaje\n\nEscribí 'Cancelar' para volver.")
+                return str(resp)
+
+        # ============================================
+        # SALUDO (con mensaje de advertencia primero, luego menú)
         # ============================================
         if incoming_msg.lower() in ["hola", "buenos dias", "buenas tardes"]:
-            print("✅ Saludo")
-            msg.body(mostrar_menu())
+            print("✅ Saludo con mensaje de bienvenida")
+            # Primero el mensaje de advertencia
+            msg.body(mostrar_mensaje_bienvenida())
+            resp = str(resp)
+            # Creamos un nuevo mensaje para el menú (esto no es posible en el mismo request)
+            # En WhatsApp, solo podemos enviar un mensaje por request.
+            # Por lo tanto, enviamos el mensaje de bienvenida y el menú juntos (un solo mensaje con dos partes)
+            # O podemos usar el cliente de Twilio para enviar dos mensajes, pero es más complejo.
+            # Solución simple: combinar ambos en un solo mensaje.
+            # Como ya tenemos msg.body con bienvenida, vamos a concatenar el menú.
+            # Rehacemos el mensaje combinado.
+            msg.body(mostrar_mensaje_bienvenida() + "\n\n" + mostrar_menu())
             return str(resp)
 
         if incoming_msg.lower() == "ayuda":
@@ -998,5 +1094,5 @@ def whatsapp_reply():
 # ============================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - VERSIÓN FINAL")
+    print(f"🚀 Bot listo en puerto {port} - VERSIÓN PRUEBA")
     app.run(host='0.0.0.0', port=port, debug=False)

@@ -20,7 +20,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN CON COMANDO /SUGERENCIAS")
+print("🚀 BOT INICIADO - VERSIÓN CORREGIDA (KeyError)")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -599,7 +599,7 @@ def responder_faq(mensaje):
     return None
 
 # ============================================
-# ESTADÍSTICAS MEJORADAS
+# ESTADÍSTICAS MEJORADAS (CORREGIDAS)
 # ============================================
 def cargar_stats():
     if os.path.exists(STATS_FILE):
@@ -619,7 +619,7 @@ def guardar_stats(stats):
         json.dump(stats, f, indent=2)
 
 def registrar_interaccion(sender, mensaje, tipo=None, consulta=None, horario=None):
-    """Registra interacción del usuario con estadísticas mejoradas"""
+    """Registra interacción del usuario con estadísticas mejoradas (corregido)"""
     stats = cargar_stats()
     ahora = ahora_argentina().strftime("%Y-%m-%d %H:%M:%S")
     
@@ -639,6 +639,12 @@ def registrar_interaccion(sender, mensaje, tipo=None, consulta=None, horario=Non
         stats["usuarios"][sender]["mensajes"] += 1
         if tipo and tipo not in stats["usuarios"][sender]["consultas"]:
             stats["usuarios"][sender]["consultas"].append(tipo)
+        
+        # Verificar y crear las claves si no existen (para usuarios viejos)
+        if "destinos_consultados" not in stats["usuarios"][sender]:
+            stats["usuarios"][sender]["destinos_consultados"] = []
+        if "horarios_consultados" not in stats["usuarios"][sender]:
+            stats["usuarios"][sender]["horarios_consultados"] = []
     
     if consulta:
         stats["usuarios"][sender]["destinos_consultados"].append(consulta)
@@ -1152,5 +1158,5 @@ def whatsapp_reply():
 # ============================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - VERSIÓN CON COMANDO /SUGERENCIAS")
+    print(f"🚀 Bot listo en puerto {port} - VERSIÓN CORREGIDA")
     app.run(host='0.0.0.0', port=port, debug=False)

@@ -20,7 +20,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN CON ESTADÍSTICAS MEJORADAS")
+print("🚀 BOT INICIADO - VERSIÓN CON COMANDO /SUGERENCIAS")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -735,6 +735,33 @@ def whatsapp_reply():
             return str(resp)
 
         # ============================================
+        # COMANDO DUEÑO - VER SUGERENCIAS
+        # ============================================
+        if incoming_msg.lower() == "/sugerencias" and sender == NUMERO_DUENIO:
+            print("✅ Comando: ver sugerencias")
+            if os.path.exists(SUGERENCIAS_FILE):
+                with open(SUGERENCIAS_FILE, 'r', encoding='utf-8') as f:
+                    sugerencias = json.load(f)
+                
+                if not sugerencias:
+                    msg.body("📝 *No hay sugerencias registradas.*\n\n😊 *Para volver al menú escribí 'Hola'*")
+                else:
+                    # Mostrar las últimas 10 sugerencias
+                    ultimas = sugerencias[-10:]
+                    texto = "📝 *ÚLTIMAS SUGERENCIAS*\n\n"
+                    for s in ultimas:
+                        # Formatear fecha: 2026-03-30 15:30:00 → 30/03/2026 15:30
+                        fecha_formateada = s['fecha'].replace('-', '/').replace('  ', ' ')
+                        texto += f"📅 {fecha_formateada}\n"
+                        texto += f"📞 {s['telefono']}\n"
+                        texto += f"💬 {s['mensaje']}\n\n---\n\n"
+                    texto += "😊 *Para volver al menú escribí 'Hola'*"
+                    msg.body(texto)
+            else:
+                msg.body("📝 *No hay sugerencias registradas.*\n\n😊 *Para volver al menú escribí 'Hola'*")
+            return str(resp)
+
+        # ============================================
         # DESPEDIDA
         # ============================================
         if any(p in incoming_msg.lower() for p in ["chau", "adiós", "adios", "bye", "gracias"]):
@@ -1125,5 +1152,5 @@ def whatsapp_reply():
 # ============================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - VERSIÓN CON ESTADÍSTICAS MEJORADAS")
+    print(f"🚀 Bot listo en puerto {port} - VERSIÓN CON COMANDO /SUGERENCIAS")
     app.run(host='0.0.0.0', port=port, debug=False)

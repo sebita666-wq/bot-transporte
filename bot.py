@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN PRUEBA")
+print("🚀 BOT INICIADO - VERSIÓN PRUEBA (MENÚ CON AVISO)")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -405,15 +405,9 @@ def formatear_horarios(resultados, origen, destino, fecha_str):
 # ============================================
 # FUNCIONES DE RESPUESTA
 # ============================================
-def mostrar_mensaje_bienvenida():
-    return (
-        "🚌 *Este bot se encuentra en etapa de desarrollo.*\n\n"
-        "Los horarios han sido chequeados para su tranquilidad, pero pueden estar sujetos a modificaciones por parte de la empresa.\n\n"
-        "✨ *¡Gracias por formar parte de esta etapa de prueba!* ✨"
-    )
-
 def mostrar_menu():
     return (
+        "🚌 *FASE DE PRUEBA* - Los horarios son orientativos.\n\n"
         "👋 *Hola! Soy el asistente virtual de la Empresa de viajes* 🚌\n\n"
         "¿Qué querés hacer hoy?\n\n"
         "🔹 *1* → Ver horarios de colectivos\n"
@@ -786,21 +780,11 @@ def whatsapp_reply():
                 return str(resp)
 
         # ============================================
-        # SALUDO (con mensaje de advertencia primero, luego menú)
+        # SALUDO
         # ============================================
         if incoming_msg.lower() in ["hola", "buenos dias", "buenas tardes"]:
-            print("✅ Saludo con mensaje de bienvenida")
-            # Primero el mensaje de advertencia
-            msg.body(mostrar_mensaje_bienvenida())
-            resp = str(resp)
-            # Creamos un nuevo mensaje para el menú (esto no es posible en el mismo request)
-            # En WhatsApp, solo podemos enviar un mensaje por request.
-            # Por lo tanto, enviamos el mensaje de bienvenida y el menú juntos (un solo mensaje con dos partes)
-            # O podemos usar el cliente de Twilio para enviar dos mensajes, pero es más complejo.
-            # Solución simple: combinar ambos en un solo mensaje.
-            # Como ya tenemos msg.body con bienvenida, vamos a concatenar el menú.
-            # Rehacemos el mensaje combinado.
-            msg.body(mostrar_mensaje_bienvenida() + "\n\n" + mostrar_menu())
+            print("✅ Saludo")
+            msg.body(mostrar_menu())
             return str(resp)
 
         if incoming_msg.lower() == "ayuda":

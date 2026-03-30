@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN PRUEBA (MENÚ CON AVISO)")
+print("🚀 BOT INICIADO - VERSIÓN PRUEBA")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -115,10 +115,10 @@ print(f"✅ Tarifas cargadas: {len(localidades)} localidades, {len(precios_espec
 print(f"✅ Duraciones cargadas: {len(duraciones)} tramos")
 
 # ============================================
-# FUNCIONES PARA SUGERENCIAS
+# FUNCIONES PARA SUGERENCIAS / RECLAMOS
 # ============================================
 def guardar_sugerencia(telefono, mensaje):
-    """Guarda una sugerencia en el archivo sugerencias.json"""
+    """Guarda una sugerencia o reclamo en el archivo sugerencias.json"""
     try:
         sugerencias = []
         if os.path.exists(SUGERENCIAS_FILE):
@@ -414,7 +414,7 @@ def mostrar_menu():
         "🔹 *2* → Consultar precios de pasajes\n"
         "🔹 *3* → Información útil (terminales, teléfono)\n"
         "🔹 *4* → Preguntas frecuentes (equipaje, mascotas, etc.)\n"
-        "🔹 *5* → 📝 Enviar sugerencia\n\n"
+        "🔹 *5* → 📝 Enviar sugerencia / reclamo\n\n"
         "📝 *También podés escribir directamente:*\n"
         "• 'De Parana a Viale'\n"
         "• 'Precio de Parana a Maria Grande'\n"
@@ -426,13 +426,13 @@ def mostrar_menu():
 
 def mostrar_menu_sugerencia():
     return (
-        "📝 *Envío de sugerencias*\n\n"
-        "Por favor, escribí tu sugerencia en el siguiente formato:\n\n"
+        "📝 *Envío de sugerencias / reclamos*\n\n"
+        "Por favor, escribí tu mensaje en el siguiente formato:\n\n"
         "*Teléfono:* Tu número\n"
-        "*Sugerencia:* Tu mensaje\n\n"
+        "*Mensaje:* Tu sugerencia o reclamo\n\n"
         "📌 *Ejemplo:*\n"
         "Teléfono: 3435123456\n"
-        "Sugerencia: El horario de las 17:15 debería pasar por Tabossi\n\n"
+        "Mensaje: El colectivo de las 15:30 siempre llega tarde\n\n"
         "✍️ *Escribí 'Cancelar' para volver al menú.*"
     )
 
@@ -526,7 +526,7 @@ def mostrar_faq():
         "📞 *objetos perdidos* – Dónde reclamar\n"
         "💺 *asiento* – Asignación de asientos\n"
         "📝 *reclamo* – Cómo hacer un reclamo\n\n"
-        "➡️ Ej: 'pago', 'equipaje', 'mascota'"
+        "➡️ Ej: 'pago', 'equipaje', 'mascota', 'reclamo'"
     )
 
 def mostrar_info_util():
@@ -589,9 +589,10 @@ def responder_faq(mensaje):
                 "La asignación de asientos es **por orden de llegada**.\n"
                 "Si necesitás un lugar especial (ej. cerca de la puerta por movilidad reducida), avisale al chofer al subir.")
     
-    if any(p in m for p in ["reclamo", "problema", "queja", "sugerencia"]):
-        return ("🚌 *Reclamos y sugerencias*\n\n"
-                "Podés acercarte a cualquiera de nuestras terminales o escribirnos a este mismo WhatsApp.\n"
+    if any(p in m for p in ["reclamo", "problema", "queja"]):
+        return ("📝 *Reclamos y sugerencias*\n\n"
+                "Para enviar un reclamo o sugerencia, escribí *5* en el menú principal y seguí las instrucciones.\n\n"
+                "También podés acercarte a cualquiera de nuestras terminales o escribirnos a este mismo WhatsApp.\n"
                 "Tu opinión nos ayuda a mejorar.")
     
     return None
@@ -738,14 +739,14 @@ def whatsapp_reply():
             msg.body(mostrar_faq())
             return str(resp)
         if incoming_msg == "5":
-            print("✅ Opción 5: Sugerencias")
+            print("✅ Opción 5: Sugerencias / Reclamos")
             ctx["estado"] = "esperando_sugerencia"
             session[sender] = ctx
             msg.body(mostrar_menu_sugerencia())
             return str(resp)
 
         # ============================================
-        # PROCESAR SUGERENCIA
+        # PROCESAR SUGERENCIA / RECLAMO
         # ============================================
         if ctx.get("estado") == "esperando_sugerencia":
             if incoming_msg.lower() == "cancelar":
@@ -754,29 +755,28 @@ def whatsapp_reply():
                 msg.body(mostrar_menu())
                 return str(resp)
             
-            # Intentar extraer teléfono y sugerencia
+            # Intentar extraer teléfono y mensaje
             lineas = incoming_msg.split('\n')
             telefono = None
-            sugerencia_texto = None
+            mensaje_texto = None
             
             for linea in lineas:
                 linea = linea.strip()
                 if linea.lower().startswith("teléfono:") or linea.lower().startswith("telefono:"):
                     telefono = linea.split(':', 1)[1].strip()
-                elif linea.lower().startswith("sugerencia:"):
-                    sugerencia_texto = linea.split(':', 1)[1].strip()
+                elif linea.lower().startswith("mensaje:"):
+                    mensaje_texto = linea.split(':', 1)[1].strip()
             
-            if telefono and sugerencia_texto:
-                if guardar_sugerencia(telefono, sugerencia_texto):
-                    msg.body("✅ *¡Gracias por tu sugerencia!*\n\nAyuda a mejorar el servicio. Volviendo al menú principal...")
+            if telefono and mensaje_texto:
+                if guardar_sugerencia(telefono, mensaje_texto):
+                    msg.body("✅ *¡Gracias por tu sugerencia!*\n\nCon ello nos ayudas a mejorar día a día.\n\nPara comenzar de nuevo escribe *Hola*")
                 else:
                     msg.body("❌ *Error al guardar la sugerencia.*\nPor favor, intentá de nuevo más tarde.")
                 ctx["estado"] = "menu"
                 session[sender] = ctx
-                msg.body(mostrar_menu())
                 return str(resp)
             else:
-                msg.body("📝 *Formato incorrecto.*\n\nUsá el formato:\nTeléfono: tu número\nSugerencia: tu mensaje\n\nEscribí 'Cancelar' para volver.")
+                msg.body("📝 *Formato incorrecto.*\n\nUsá el formato:\nTeléfono: tu número\nMensaje: tu sugerencia o reclamo\n\nEscribí 'Cancelar' para volver.")
                 return str(resp)
 
         # ============================================

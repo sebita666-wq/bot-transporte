@@ -20,7 +20,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN CORREGIDA (KeyError)")
+print("🚀 BOT INICIADO - VERSIÓN CON CONTEXTO CORREGIDO")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -599,7 +599,7 @@ def responder_faq(mensaje):
     return None
 
 # ============================================
-# ESTADÍSTICAS MEJORADAS (CORREGIDAS)
+# ESTADÍSTICAS MEJORADAS
 # ============================================
 def cargar_stats():
     if os.path.exists(STATS_FILE):
@@ -768,19 +768,11 @@ def whatsapp_reply():
             return str(resp)
 
         # ============================================
-        # DESPEDIDA
+        # DESPEDIDA (CORREGIDA)
         # ============================================
         if any(p in incoming_msg.lower() for p in ["chau", "adiós", "adios", "bye", "gracias"]):
             print("✅ Despedida")
-
-            # Guardar el contexto pero volver al menú
-                ctx["ultimo_origen"] = origen
-                ctx["ultimo_destino"] = destino
-                ctx["estado"] = "menu"
-                ctx["intencion"] = None
-                ctx["fecha_pendiente"] = fecha
-                session[sender] = ctx
-
+            session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
             msg.body(despedida())
             return str(resp)
 
@@ -882,7 +874,11 @@ def whatsapp_reply():
                     msg.body(f"💰 El pasaje de {origen} a {destino} cuesta **${precio}**.")
                 else:
                     msg.body(f"😕 No tengo precio de {origen} a {destino}.")
-                session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
+                # Guardar contexto
+                ctx["ultimo_origen"] = origen
+                ctx["ultimo_destino"] = destino
+                ctx["estado"] = "menu"
+                session[sender] = ctx
                 return str(resp)
             else:
                 msg.body(no_entendido_inteligente(incoming_msg))
@@ -945,7 +941,13 @@ def whatsapp_reply():
                 # Registrar consulta de horarios para estadísticas
                 registrar_interaccion(sender, incoming_msg, tipo="horarios", consulta=f"{origen}→{destino}")
                 
-                session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
+                # Guardar contexto (NO borrar)
+                ctx["ultimo_origen"] = origen
+                ctx["ultimo_destino"] = destino
+                ctx["estado"] = "menu"
+                ctx["intencion"] = None
+                ctx["fecha_pendiente"] = fecha
+                session[sender] = ctx
                 return str(resp)
             else:
                 msg.body(no_entendido_inteligente(incoming_msg))
@@ -974,7 +976,12 @@ def whatsapp_reply():
                 else:
                     msg.body(f"😕 No tengo precio de {origen} a {destino}.")
                 registrar_interaccion(sender, incoming_msg, tipo="precio", consulta=f"{origen}→{destino}")
-                session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
+                # Guardar contexto
+                ctx["ultimo_origen"] = origen
+                ctx["ultimo_destino"] = destino
+                ctx["estado"] = "menu"
+                ctx["fecha_pendiente"] = fecha
+                session[sender] = ctx
                 return str(resp)
             
             # PRIORIDAD 2: PRIMER
@@ -992,7 +999,11 @@ def whatsapp_reply():
                     registrar_interaccion(sender, incoming_msg, tipo="primer", consulta=f"{origen}→{destino}", horario=primer)
                 else:
                     msg.body(f"😕 No hay servicios de {origen} a {destino} para esa fecha.")
-                session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
+                ctx["ultimo_origen"] = origen
+                ctx["ultimo_destino"] = destino
+                ctx["estado"] = "menu"
+                ctx["fecha_pendiente"] = fecha
+                session[sender] = ctx
                 return str(resp)
             
             # PRIORIDAD 3: PRÓXIMO
@@ -1016,7 +1027,11 @@ def whatsapp_reply():
                         msg.body(f"😕 No hay más servicios de {origen} a {destino} hoy.")
                 else:
                     msg.body(f"😕 No hay más servicios de {origen} a {destino} hoy.")
-                session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
+                ctx["ultimo_origen"] = origen
+                ctx["ultimo_destino"] = destino
+                ctx["estado"] = "menu"
+                ctx["fecha_pendiente"] = fecha
+                session[sender] = ctx
                 return str(resp)
             
             # PRIORIDAD 4: ÚLTIMO
@@ -1034,7 +1049,11 @@ def whatsapp_reply():
                     registrar_interaccion(sender, incoming_msg, tipo="ultimo", consulta=f"{origen}→{destino}", horario=ult)
                 else:
                     msg.body(f"😕 No hay servicios de {origen} a {destino} para esa fecha.")
-                session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
+                ctx["ultimo_origen"] = origen
+                ctx["ultimo_destino"] = destino
+                ctx["estado"] = "menu"
+                ctx["fecha_pendiente"] = fecha
+                session[sender] = ctx
                 return str(resp)
             
             # PRIORIDAD 5: HORARIOS COMUNES
@@ -1045,7 +1064,11 @@ def whatsapp_reply():
                 fecha_str = fecha.strftime("%d/%m/%Y")
                 msg.body(formatear_horarios(resultados, origen, destino, fecha_str))
                 registrar_interaccion(sender, incoming_msg, tipo="horarios", consulta=f"{origen}→{destino}")
-                session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
+                ctx["ultimo_origen"] = origen
+                ctx["ultimo_destino"] = destino
+                ctx["estado"] = "menu"
+                ctx["fecha_pendiente"] = fecha
+                session[sender] = ctx
                 return str(resp)
 
         # ============================================
@@ -1166,5 +1189,5 @@ def whatsapp_reply():
 # ============================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - VERSIÓN CORREGIDA")
+    print(f"🚀 Bot listo en puerto {port} - VERSIÓN CON CONTEXTO CORREGIDO")
     app.run(host='0.0.0.0', port=port, debug=False)

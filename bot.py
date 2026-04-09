@@ -720,20 +720,6 @@ def whatsapp_reply():
         if sender not in session:
             session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
         ctx = session[sender]
-    try:
-        incoming_msg = request.values.get('Body', '').strip()
-        sender = request.values.get('From', '')
-        print(f"\n📩 MENSAJE RECIBIDO: '{incoming_msg}' de {sender}")
-
-        # Registrar interacción básica (sin tipo aún)
-        registrar_interaccion(sender, incoming_msg)
-
-        resp = MessagingResponse()
-        msg = resp.message()
-
-        if sender not in session:
-            session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
-        ctx = session[sender]
 
         # ============================================
         # COMANDO DUEÑO - ESTADÍSTICAS MEJORADAS

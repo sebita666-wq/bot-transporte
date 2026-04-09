@@ -705,8 +705,10 @@ def whatsapp_reply():
     # FORZAR LA URL CORRECTA PARA RENDER (PROXY)
     # ============================================
     if 'X-Forwarded-Proto' in request.headers:
-        request.url = request.headers['X-Forwarded-Proto'] + '://' + request.headers['X-Forwarded-Host'] + request.path
-    
+        protocol = request.headers.get('X-Forwarded-Proto', 'http')
+        host = request.headers.get('X-Forwarded-Host', request.host)
+        request.url = f"{protocol}://{host}{request.path}"
+
     try:
         incoming_msg = request.values.get('Body', '').strip()
         sender = request.values.get('From', '')

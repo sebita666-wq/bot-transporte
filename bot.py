@@ -408,16 +408,17 @@ def formatear_horarios(resultados, origen, destino, fecha_str):
 # ============================================
 def mostrar_menu():
     return (
-        "🚌 El BOT se encuentra en *FASE DE PRUEBA* - .\n\n"
+        "🚌 *FASE DE PRUEBA* - Los horarios son orientativos.\n\n"
         "👋 *Hola! Soy el asistente virtual de la Empresa de viajes* 🚌\n\n"
         "¿Qué querés hacer hoy?\n\n"
         "🔹 *1* → Ver horarios de colectivos\n"
         "🔹 *2* → Consultar precios de pasajes\n"
         "🔹 *3* → Información útil (terminales, teléfono)\n"
         "🔹 *4* → Preguntas frecuentes (equipaje, mascotas, etc.)\n"
-        "🔹 *5* → Enviar sugerencia\n\n"
+        "🔹 *5* → 📝 Enviar sugerencia / reclamo\n\n"
         "📝 *También podés escribir directamente:*\n"
         "• 'De Parana a Viale'\n"
+        "• 'Precio de Parana a Maria Grande'\n"
         "• 'Primer colectivo de Viale a Parana'\n"
         "• 'Próximo de Tabossi a Parana'\n"
         "• 'Último de Parana a Sosa el 17/03'\n\n"
@@ -453,14 +454,14 @@ def mostrar_ayuda_detallada():
         "• *Ruta 10 + 18:* Paraná → María Grande (R10) → Sosa/Tabossi (R18)\n\n"
         
         "📍 *LOCALIDADES:*\n"
-        "Parana, Aldea San Antonio, Viale, Tabossi, Sosa, Maria Grande.\n\n"
+        "Parana, Viale, Tabossi, Sosa, Maria Grande, Aldea San Antonio, Genolet, Sauce, 3 Bocas, Quebracho, El Ramblón, Paraje de las Piedras, Arroyo Carmona, Sauce Montrull\n\n"
         
         "❌ *ERRORES COMUNES:*\n"
         "• 'Parana Viale' → falta 'a'\n"
         "• 'Quiero ir a Viale' → falta origen\n"
         "• 'Primero' → falta origen/destino\n\n"
         
-        "💡 *TIP:* Usá '_*De*_ Viale _*a*_ Parana' o 'Viale _*a*_ Parana'\n"
+        "💡 *TIP:* Usá 'De X a Y' o 'X a Y'\n"
         "📅 Fechas: '17/03' o '17 de marzo'\n"
         "👋 Escribí 'Hola' para volver al menú."
     )
@@ -535,7 +536,8 @@ def mostrar_info_util():
         "📍 *Terminal Paraná:* Av. Ramírez 1200\n"
         "📍 *Terminal María Grande:* San Martín 450\n"
         "📍 *Terminal Viale:* (pendiente)\n\n"
-        "📞 *Teléfono de contacto:* 343 431-3689\n"
+        "📞 *Teléfono de contacto:* 343 456-7890\n"
+        "⏰ *Atención:* Lun a Dom 6:00 a 22:00\n\n"
         "🌐 *Web:* (próximamente)"
     )
 
@@ -554,7 +556,7 @@ def responder_faq(mensaje):
                 "• Tarjeta SUBE\n"
                 "• Tarjeta de débito o crédito\n"
                 "• Mercado Pago QR\n\n"
-                "Todos los pagos se realizan en el colectivo.")
+                "Todos los pagos se realizan en la terminal antes de subir.")
     
     if any(p in m for p in ["equipaje", "valija", "bulto", "maleta"]):
         return ("🧳 *Límite de equipaje*\n\n"
@@ -569,7 +571,7 @@ def responder_faq(mensaje):
     
     if any(p in m for p in ["perdi", "objeto", "olvide", "cartera", "celular", "llaves"]):
         return ("📞 *Objetos perdidos*\n\n"
-                "Si perdiste algo en un colectivo, comunicate al 📱 **0343 431-3689** o acercate a nuestra empresa en:\n"
+                "Si perdiste algo en un colectivo, comunicate al 📱 **343 456-7890** o acercate a nuestra empresa en:\n"
                 "📍 **Guetto de Varsovia 211, Paraná** (Empresa Grupo ERSA)\n\n"
                 "Tené a mano el día y horario del viaje para ayudarte a ubicarlo.")
     
@@ -702,7 +704,6 @@ def whatsapp_reply():
     # ============================================
     # FORZAR LA URL CORRECTA PARA RENDER (PROXY)
     # ============================================
-    from flask import request
     if 'X-Forwarded-Proto' in request.headers:
         request.url = request.headers['X-Forwarded-Proto'] + '://' + request.headers['X-Forwarded-Host'] + request.path
     

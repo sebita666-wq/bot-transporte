@@ -6,6 +6,7 @@ import re
 import json
 import os
 import traceback
+import requests
 from collections import Counter
 
 app = Flask(__name__)
@@ -20,12 +21,16 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN CON SUGERENCIAS FLEXIBLES")
+print("🚀 BOT INICIADO - VERSIÓN HÍBRIDA (DeepSeek IA + Lógica Estándar)")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
 STATS_FILE = 'estadisticas.json'
 SUGERENCIAS_FILE = 'sugerencias.json'
+
+# DeepSeek API Key (desde variable de entorno)
+DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
+DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
 app.secret_key = SECRET_KEY
 
@@ -114,6 +119,63 @@ duraciones = cargar_duraciones()
 print(f"✅ Horarios cargados: hábiles={len(horarios_habiles)}, sábados={len(horarios_sabados)}, domingos={len(horarios_domingos)}")
 print(f"✅ Tarifas cargadas: {len(localidades)} localidades, {len(precios_especiales)} precios especiales")
 print(f"✅ Duraciones cargadas: {len(duraciones)} tramos")
+print(f"🤖 DeepSeek IA: {'Habilitada' if DEEPSEEK_API_KEY else 'No configurada'}")
+
+# ============================================
+# FUNCIÓN PARA CONSULTAR DEEPSEEK (IA)
+# ============================================
+def consultar_deepseek(mensaje, historial=None):
+    """Envía una consulta a DeepSeek y devuelve la respuesta"""
+    if not DEEPSEEK_API_KEY:
+        print("⚠️ DeepSeek no configurado")
+        return None
+    
+    try:
+        # Preparar mensajes para la API
+        mensajes = [
+            {
+                "role": "system",
+                "content": """Eres un asistente de transporte para una empresa de colectivos en Entre Ríos.
+                Las localidades son: Paraná, Viale, Tabossi, Sosa, María Grande, Aldea San Antonio, Genolet, Sauce, 3 Bocas, Quebracho, El Ramblón.
+                Respondé de manera amable, breve y útil. Si te preguntan por horarios específicos, sugerí usar comandos como 'De Parana a Viale'.
+                No inventes horarios que no conozcas. Si no sabés algo, decí que consulten en la terminal."""
+            }
+        ]
+        
+        # Agregar historial reciente si existe
+        if historial:
+            mensajes.extend(historial[-5:])  # últimos 5 mensajes para contexto
+        
+        # Agregar mensaje actual
+        mensajes.append({"role": "user", "content": mensaje})
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
+        }
+        
+        data = {
+            "model": "deepseek-chat",
+            "messages": mensajes,
+            "temperature": 0.7,
+            "max_tokens": 500
+        }
+        
+        response = requests.post(DEEPSEEK_URL, headers=headers, json=data, timeout=10)
+        
+        if response.status_code == 200:
+            resultado = response.json()
+            return resultado['choices'][0]['message']['content']
+        elif response.status_code == 402:
+            print("⚠️ Sin saldo en DeepSeek (Error 402)")
+            return None
+        else:
+            print(f"❌ Error DeepSeek: {response.status_code}")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Error consultando DeepSeek: {e}")
+        return None
 
 # ============================================
 # FUNCIONES PARA SUGERENCIAS / RECLAMOS
@@ -697,7 +759,7 @@ def horarios_mas_consultados():
     return contador.most_common(5)
 
 # ============================================
-# WEBHOOK PRINCIPAL
+# WEBHOOK PRINCIPAL (CON MODO HÍBRIDO)
 # ============================================
 @app.route('/whatsapp', methods=['POST'])
 def whatsapp_reply():
@@ -708,7 +770,7 @@ def whatsapp_reply():
         protocol = request.headers.get('X-Forwarded-Proto', 'http')
         host = request.headers.get('X-Forwarded-Host', request.host)
         request.url = f"{protocol}://{host}{request.path}"
-
+    
     try:
         incoming_msg = request.values.get('Body', '').strip()
         sender = request.values.get('From', '')
@@ -760,11 +822,9 @@ def whatsapp_reply():
                 if not sugerencias:
                     msg.body("📝 *No hay sugerencias registradas.*\n\n😊 *Para volver al menú escribí 'Hola'*")
                 else:
-                    # Mostrar las últimas 10 sugerencias
                     ultimas = sugerencias[-10:]
                     texto = "📝 *ÚLTIMAS SUGERENCIAS*\n\n"
                     for s in ultimas:
-                        # Formatear fecha: 2026-03-30 15:30:00 → 30/03/2026 15:30
                         fecha_formateada = s['fecha'].replace('-', '/').replace('  ', ' ')
                         texto += f"📅 {fecha_formateada}\n"
                         texto += f"📞 {s['telefono']}\n"
@@ -822,7 +882,7 @@ def whatsapp_reply():
             return str(resp)
 
         # ============================================
-        # PROCESAR SUGERENCIA / RECLAMO (VERSIÓN FLEXIBLE)
+        # PROCESAR SUGERENCIA / RECLAMO
         # ============================================
         if ctx.get("estado") == "esperando_sugerencia":
             if incoming_msg.lower() == "cancelar":
@@ -831,23 +891,18 @@ def whatsapp_reply():
                 msg.body(mostrar_menu())
                 return str(resp)
             
-            # Intentar extraer teléfono y mensaje (formato flexible)
             lineas = incoming_msg.split('\n')
             telefono = None
             mensaje_texto = None
             
             for linea in lineas:
                 linea = linea.strip()
-                # Buscar línea que comience con "teléfono" o "telefono" (case insensitive)
                 if linea.lower().startswith("teléfono:") or linea.lower().startswith("telefono:"):
                     telefono = linea.split(':', 1)[1].strip()
-                # Buscar línea que comience con "mensaje" (case insensitive)
                 elif linea.lower().startswith("mensaje:"):
                     mensaje_texto = linea.split(':', 1)[1].strip()
             
-            # También puede venir en una sola línea con formato "Teléfono: X, Mensaje: Y"
             if not telefono or not mensaje_texto:
-                # Buscar con regex más flexible
                 import re
                 match_telefono = re.search(r'(?:tel[eé]fono:?)\s*(\d+)', incoming_msg, re.IGNORECASE)
                 match_mensaje = re.search(r'(?:mensaje:?)\s*(.+?)(?:\s*(?:gracias|$))', incoming_msg, re.IGNORECASE)
@@ -901,6 +956,12 @@ def whatsapp_reply():
                 session[sender] = ctx
                 return str(resp)
             else:
+                # Intentar con IA si no se pudo extraer
+                if DEEPSEEK_API_KEY:
+                    respuesta_ia = consultar_deepseek(incoming_msg)
+                    if respuesta_ia:
+                        msg.body(respuesta_ia)
+                        return str(resp)
                 msg.body(no_entendido_inteligente(incoming_msg))
                 return str(resp)
 
@@ -958,10 +1019,8 @@ def whatsapp_reply():
                 else:
                     msg.body(formatear_horarios(resultados, origen, destino, fecha_str))
                 
-                # Registrar consulta de horarios para estadísticas
                 registrar_interaccion(sender, incoming_msg, tipo="horarios", consulta=f"{origen}→{destino}")
                 
-                # Guardar contexto (NO borrar)
                 ctx["ultimo_origen"] = origen
                 ctx["ultimo_destino"] = destino
                 ctx["estado"] = "menu"
@@ -970,11 +1029,17 @@ def whatsapp_reply():
                 session[sender] = ctx
                 return str(resp)
             else:
+                # Intentar con IA si no se pudo extraer
+                if DEEPSEEK_API_KEY:
+                    respuesta_ia = consultar_deepseek(incoming_msg)
+                    if respuesta_ia:
+                        msg.body(respuesta_ia)
+                        return str(resp)
                 msg.body(no_entendido_inteligente(incoming_msg))
                 return str(resp)
 
         # ============================================
-        # NUEVA CONSULTA DIRECTA
+        # NUEVA CONSULTA DIRECTA (MODO HÍBRIDO)
         # ============================================
         print("🔍 Procesando como consulta directa")
         intencion = detectar_intencion(incoming_msg)
@@ -1091,10 +1156,17 @@ def whatsapp_reply():
                 return str(resp)
 
         # ============================================
-        # INTENCIÓN SIN ORIGEN/DESTINO
+        # INTENCIÓN SIN ORIGEN/DESTINO - DERIVAR A IA
         # ============================================
         if intencion and not origen:
             print(f"✅ Intención detectada sin origen/destino: {intencion}")
+            # Intentar con IA primero
+            if DEEPSEEK_API_KEY:
+                respuesta_ia = consultar_deepseek(incoming_msg)
+                if respuesta_ia:
+                    msg.body(respuesta_ia)
+                    return str(resp)
+            # Fallback al flujo normal
             if ctx.get("fecha_pendiente"):
                 fecha = ctx["fecha_pendiente"]
                 print(f"📅 Manteniendo fecha anterior: {fecha.strftime('%d/%m/%Y')}")
@@ -1106,7 +1178,7 @@ def whatsapp_reply():
             return str(resp)
 
         # ============================================
-        # CONSULTA SIN CONTEXTO
+        # CONSULTA SIN CONTEXTO - DERIVAR A IA
         # ============================================
         if not ctx["ultimo_origen"]:
             if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "$", "próximo", "proximo", "último", "ultimo", "primer"]):
@@ -1189,9 +1261,14 @@ def whatsapp_reply():
                 return str(resp)
 
         # ============================================
-        # NO ENTENDIDO
+        # NO ENTENDIDO - DERIVAR A IA
         # ============================================
-        print("❌ No entendido")
+        print("❌ No entendido, intentando con IA...")
+        if DEEPSEEK_API_KEY:
+            respuesta_ia = consultar_deepseek(incoming_msg)
+            if respuesta_ia:
+                msg.body(respuesta_ia)
+                return str(resp)
         msg.body(no_entendido_inteligente(incoming_msg))
         return str(resp)
 
@@ -1208,5 +1285,5 @@ def whatsapp_reply():
 # ============================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - VERSIÓN CON SUGERENCIAS FLEXIBLES")
+    print(f"🚀 Bot listo en puerto {port} - VERSIÓN HÍBRIDA (DeepSeek IA)")
     app.run(host='0.0.0.0', port=port, debug=False)

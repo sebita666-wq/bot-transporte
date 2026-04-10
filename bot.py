@@ -122,23 +122,58 @@ print(f"✅ Duraciones cargadas: {len(duraciones)} tramos")
 print(f"🤖 DeepSeek IA: {'Habilitada' if DEEPSEEK_API_KEY else 'No configurada'}")
 
 # ============================================
-# FUNCIÓN PARA CONSULTAR DEEPSEEK (IA)
+# FUNCIÓN PARA CONSULTAR DEEPSEEK (IA CON PROMPT MEJORADO)
 # ============================================
 def consultar_deepseek(mensaje, historial=None):
-    """Envía una consulta a DeepSeek y devuelve la respuesta"""
+    """Envía una consulta a DeepSeek y devuelve la respuesta con formato amigable"""
     if not DEEPSEEK_API_KEY:
         print("⚠️ DeepSeek no configurado")
         return None
     
     try:
-        # Preparar mensajes para la API
+        # Preparar mensajes para la API con PROMPT MEJORADO
         mensajes = [
             {
                 "role": "system",
-                "content": """Eres un asistente de transporte para una empresa de colectivos en Entre Ríos.
-                Las localidades son: Paraná, Viale, Tabossi, Sosa, María Grande, Aldea San Antonio, Genolet, Sauce, 3 Bocas, Quebracho, El Ramblón.
-                Respondé de manera amable, breve y útil. Si te preguntan por horarios específicos, sugerí usar comandos como 'De Parana a Viale'.
-                No inventes horarios que no conozcas. Si no sabés algo, decí que consulten en la terminal."""
+                "content": """🚌 *Asistente de Transporte - Empresa de Viajes* 🚌
+
+🎯 Soy un asistente para consultas de colectivos en Entre Ríos.
+
+📍 *Localidades que conozco:*
+Paraná, Viale, Tabossi, Sosa, María Grande, Aldea San Antonio, Genolet, Sauce, 3 Bocas, Quebracho, El Ramblón.
+
+📋 *REGLAS IMPORTANTES:*
+
+1️⃣ Respondé SIEMPRE con EMOTICONES para hacer la conversación más amigable y cálida.
+   - 🚌 para colectivos
+   - 📍 para ubicaciones
+   - 💰 para precios
+   - ✅ para confirmaciones
+   - ❌ para errores
+   - 😊 para saludos y despedidas
+   - ⏰ para horarios
+   - 📅 para fechas
+   - 🤔 cuando no entiendas algo
+
+2️⃣ Usá NEGRITAS con *texto* para destacar información importante.
+
+3️⃣ Usá SALTOS DE LÍNEA cada 2 o 3 oraciones para mejorar la legibilidad.
+
+4️⃣ Si te preguntan por HORARIOS ESPECÍFICOS (ej: "De Parana a Viale"), sugerí usar el comando exacto para obtener información precisa.
+
+5️⃣ Sé BREVE y AMIGABLE. No respondas con textos extremadamente largos.
+
+6️⃣ Si NO SABÉS algo, decí: "No tengo esa información. Te recomiendo consultar en la terminal o con el administrador. 😊"
+
+7️⃣ Si el usuario pregunta algo gracioso o fuera de contexto (ej: "ir a la luna"), respondé con humor pero aclarando que tu función es ayudar con el transporte local.
+
+💡 *EJEMPLO DE RESPUESTA IDEAL:*
+🚌 *Paraná → Viale*
+⏰ Horarios: 04:45, 05:35, 06:40, 08:45, 10:00...
+💰 *Precio:* $7.500
+📍 ¿Necesitas algo más? 😊
+
+👍 Siempre cerrá con una pregunta amigable o un emoticón positivo."""
             }
         ]
         
@@ -1285,5 +1320,5 @@ def whatsapp_reply():
 # ============================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - VERSIÓN HÍBRIDA (DeepSeek IA)")
+    print(f"🚀 Bot listo en puerto {port} - VERSIÓN HÍBRIDA CON PROMPT MEJORADO")
     app.run(host='0.0.0.0', port=port, debug=False)

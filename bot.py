@@ -24,6 +24,9 @@ except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
 print("🚀 BOT INICIADO - VERSIÓN HÍBRIDA CON BUGS CORREGIDOS")
+print("✅ Anti-spam: 4 segundos")
+print("✅ Sesión: 30 minutos")
+print("✅ Logs detallados activados")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
@@ -49,7 +52,7 @@ def cargar_limites_ia():
         "config": {
             "max_por_dia": 15,
             "max_por_mes": 100,
-            "min_segundos_entre": 4,  # ✅ CAMBIADO A 4 SEGUNDOS
+            "min_segundos_entre": 4,
             "reset_hora": 3
         }
     }
@@ -59,13 +62,11 @@ def guardar_limites_ia(data):
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 def verificar_limite_ia(sender):
-    """Verifica si un usuario puede usar IA (con anti-spam de 4 segundos)"""
     limites = cargar_limites_ia()
     config = limites["config"]
     ahora = ahora_argentina()
     fecha_hoy = ahora.strftime("%Y-%m-%d")
     
-    # Inicializar usuario si no existe
     if sender not in limites["usuarios"]:
         limites["usuarios"][sender] = {
             "consultas_hoy": 0,
@@ -78,7 +79,7 @@ def verificar_limite_ia(sender):
     
     user = limites["usuarios"][sender]
     
-    # ✅ CORREGIDO: Verificar que existan todas las claves
+    # Asegurar que existan todas las claves
     if "bloqueado_hasta" not in user:
         user["bloqueado_hasta"] = None
     if "ultima_fecha_dia" not in user:
@@ -92,7 +93,6 @@ def verificar_limite_ia(sender):
     if "ultima_consulta" not in user:
         user["ultima_consulta"] = None
     
-    # Verificar bloqueo
     if user["bloqueado_hasta"]:
         try:
             bloqueo_hasta = datetime.fromisoformat(user["bloqueado_hasta"])
@@ -105,7 +105,6 @@ def verificar_limite_ia(sender):
         except:
             user["bloqueado_hasta"] = None
     
-    # Limpiar historial de fechas (consultas por mes)
     fechas_validas = []
     for fecha_str in user.get("historial_fechas", []):
         try:
@@ -117,12 +116,10 @@ def verificar_limite_ia(sender):
     user["historial_fechas"] = fechas_validas
     user["consultas_mes"] = len(fechas_validas)
     
-    # Resetear contador diario si es nuevo día
     if user.get("ultima_fecha_dia") != fecha_hoy:
         user["consultas_hoy"] = 0
         user["ultima_fecha_dia"] = fecha_hoy
     
-    # ✅ ANTI-SPAM DE 4 SEGUNDOS
     if user.get("ultima_consulta"):
         try:
             ultima = datetime.fromisoformat(user["ultima_consulta"])
@@ -134,25 +131,20 @@ def verificar_limite_ia(sender):
         except:
             pass
     
-    # Verificar límite diario
     if user["consultas_hoy"] >= config["max_por_dia"]:
         user["bloqueado_hasta"] = (ahora + timedelta(hours=24)).isoformat()
         guardar_limites_ia(limites)
         return False, f"📊 Límite diario alcanzado ({config['max_por_dia']}). Volvé mañana. 😊"
     
-    # Verificar límite mensual
     if user["consultas_mes"] >= config["max_por_mes"]:
         user["bloqueado_hasta"] = (ahora + timedelta(days=30)).isoformat()
         guardar_limites_ia(limites)
         return False, f"📅 Límite mensual alcanzado ({config['max_por_mes']}). Volvé el mes que viene. 😊"
     
-    # Guardar cambios antes de salir
     guardar_limites_ia(limites)
-    
     return True, None
 
 def registrar_consulta_ia(sender, exito=True):
-    """Registra una consulta a IA (exitosa o no)"""
     limites = cargar_limites_ia()
     ahora = ahora_argentina()
     
@@ -188,6 +180,100 @@ def ahora_argentina():
     return datetime.now(timezone)
 
 # ============================================
+# ESTADÍSTICAS (CORREGIDAS)
+# ============================================
+def cargar_stats():
+    if os.path.exists(STATS_FILE):
+        with open(STATS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {
+        "usuarios": {},
+        "metricas": {
+            "total_usuarios_unicos": 0,
+            "total_mensajes": 0,
+            "ultimo_reinicio": ahora_argentina().strftime("%Y-%m-%d %H:%M:%S")
+        }
+    }
+
+def guardar_stats(stats):
+    with open(STATS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(stats, f, indent=2, ensure_ascii=False)
+
+def registrar_interaccion(sender, mensaje, tipo=None, consulta=None, horario=None):
+    stats = cargar_stats()
+    ahora = ahora_argentina().strftime("%Y-%m-%d %H:%M:%S")
+    
+    if sender not in stats["usuarios"]:
+        stats["usuarios"][sender] = {
+            "primer_contacto": ahora,
+            "ultimo_contacto": ahora,
+            "mensajes": 1,
+            "consultas": [tipo] if tipo else [],
+            "destinos_consultados": [],
+            "horarios_consultados": []
+        }
+        stats["metricas"]["total_usuarios_unicos"] += 1
+        print(f"📊 Nuevo usuario: {sender}")
+    else:
+        stats["usuarios"][sender]["ultimo_contacto"] = ahora
+        stats["usuarios"][sender]["mensajes"] += 1
+        if tipo and tipo not in stats["usuarios"][sender]["consultas"]:
+            stats["usuarios"][sender]["consultas"].append(tipo)
+        
+        if "destinos_consultados" not in stats["usuarios"][sender]:
+            stats["usuarios"][sender]["destinos_consultados"] = []
+        if "horarios_consultados" not in stats["usuarios"][sender]:
+            stats["usuarios"][sender]["horarios_consultados"] = []
+    
+    if consulta:
+        stats["usuarios"][sender]["destinos_consultados"].append(consulta)
+    if horario:
+        stats["usuarios"][sender]["horarios_consultados"].append(horario)
+    
+    stats["metricas"]["total_mensajes"] += 1
+    guardar_stats(stats)
+
+def resumen_stats():
+    stats = cargar_stats()
+    ahora = ahora_argentina()
+    hoy = ahora.strftime("%Y-%m-%d")
+    semana = (ahora - timedelta(days=7)).strftime("%Y-%m-%d")
+    
+    usuarios_hoy = sum(
+        1 for u in stats["usuarios"].values()
+        if u["ultimo_contacto"].startswith(hoy)
+    )
+    
+    usuarios_semana = sum(
+        1 for u in stats["usuarios"].values()
+        if u["ultimo_contacto"][:10] >= semana
+    )
+    
+    return {
+        "total_usuarios": stats["metricas"]["total_usuarios_unicos"],
+        "total_mensajes": stats["metricas"]["total_mensajes"],
+        "usuarios_hoy": usuarios_hoy,
+        "usuarios_semana": usuarios_semana,
+        "ultimo_reinicio": stats["metricas"]["ultimo_reinicio"]
+    }
+
+def destinos_mas_frecuentes():
+    stats = cargar_stats()
+    destinos = []
+    for usuario, datos in stats["usuarios"].items():
+        destinos.extend(datos.get("destinos_consultados", []))
+    contador = Counter(destinos)
+    return contador.most_common(5)
+
+def horarios_mas_consultados():
+    stats = cargar_stats()
+    horarios = []
+    for usuario, datos in stats["usuarios"].items():
+        horarios.extend(datos.get("horarios_consultados", []))
+    contador = Counter(horarios)
+    return contador.most_common(5)
+
+# ============================================
 # VALIDAR ARCHIVOS JSON
 # ============================================
 def validar_archivos_json():
@@ -221,6 +307,7 @@ def es_feriado_nacional(fecha):
 
 def obtener_tipo_dia(fecha):
     if es_feriado_nacional(fecha):
+        print(f"📅 FERIADO: {fecha.strftime('%d/%m/%Y')} → se trata como domingo")
         return "domingos"
     if fecha.weekday() < 5:
         return "habiles"
@@ -258,17 +345,24 @@ matriz_precios = tarifas_data.get('matriz_precios', [])
 precios_especiales = tarifas_data.get('precios_especiales', {})
 duraciones = cargar_duraciones()
 
+print(f"✅ Horarios cargados: hábiles={len(horarios_habiles)}, sábados={len(horarios_sabados)}, domingos={len(horarios_domingos)}")
+print(f"✅ Tarifas cargadas: {len(localidades)} localidades")
+print(f"🤖 DeepSeek IA: {'Habilitada' if DEEPSEEK_API_KEY else 'No configurada'}")
+
 # ============================================
 # FUNCIÓN DEEPSEEK CON LÍMITES
 # ============================================
 def consultar_deepseek(mensaje, sender, historial=None):
-    """Envía consulta a DeepSeek con verificación de límites"""
     if not DEEPSEEK_API_KEY:
+        print("⚠️ DeepSeek no configurado")
         return None
     
     puede_usar, mensaje_limite = verificar_limite_ia(sender)
     if not puede_usar:
+        print(f"⛔ IA bloqueada para {sender}: {mensaje_limite[:50]}...")
         return mensaje_limite
+    
+    print(f"🤖 Consultando a DeepSeek: '{mensaje[:50]}...'")
     
     try:
         mensajes = [
@@ -313,6 +407,7 @@ def consultar_deepseek(mensaje, sender, historial=None):
             resultado = response.json()
             respuesta = resultado['choices'][0]['message']['content']
             registrar_consulta_ia(sender, exito=True)
+            print(f"✅ DeepSeek respondió correctamente")
             
             limites = cargar_limites_ia()
             user = limites["usuarios"].get(sender, {})
@@ -322,9 +417,13 @@ def consultar_deepseek(mensaje, sender, historial=None):
                 respuesta += f"\n\n📊 Te quedan {restan_hoy} consultas hoy. 😊"
             
             return respuesta
-        else:
+        elif response.status_code == 402:
+            print("⚠️ Sin saldo en DeepSeek (Error 402)")
             registrar_consulta_ia(sender, exito=False)
+            return None
+        else:
             print(f"❌ DeepSeek error: {response.status_code}")
+            registrar_consulta_ia(sender, exito=False)
             return None
     except Exception as e:
         registrar_consulta_ia(sender, exito=False)
@@ -332,7 +431,7 @@ def consultar_deepseek(mensaje, sender, historial=None):
         return None
 
 # ============================================
-# NORMALIZACIÓN CORREGIDA (con acentos)
+# NORMALIZACIÓN
 # ============================================
 def normalizar_localidad(texto):
     if not texto:
@@ -351,16 +450,20 @@ def normalizar_localidad(texto):
 
 def extraer_origen_destino(mensaje):
     m = mensaje.lower().strip()
+    print(f"🔍 EXTRAYENDO de: '{m}'")
+    
     m = re.sub(r'[¿?!¡.,;:]', '', m)
     
     palabras_irrelevantes = ['cual', 'es', 'el', 'la', 'los', 'las', 'y', 'e']
     
     if m.startswith('cual es '):
         m = m[8:]
+        print(f"  → Limpiado 'cual es': '{m}'")
     
     partes = m.split()
     if partes and partes[0] in palabras_irrelevantes:
         m = ' '.join(partes[1:])
+        print(f"  → Limpiado inicio: '{m}'")
     
     palabras = m.split()
     for i, palabra in enumerate(palabras):
@@ -369,9 +472,11 @@ def extraer_origen_destino(mensaje):
                 if palabras[j] == "a":
                     origen = " ".join(palabras[i+1:j])
                     destino = " ".join(palabras[j+1:])
+                    print(f"  → Encontré 'de' en {i}, 'a' en {j}: origen='{origen}', destino='{destino}'")
                     origen_norm = normalizar_localidad(origen)
                     destino_norm = normalizar_localidad(destino)
                     if origen_norm and destino_norm:
+                        print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
                         return origen_norm, destino_norm
                     if origen_norm:
                         palabras_destino = destino.split()
@@ -379,6 +484,7 @@ def extraer_origen_destino(mensaje):
                             posible_destino = " ".join(palabras_destino[:k])
                             destino_norm = normalizar_localidad(posible_destino)
                             if destino_norm:
+                                print(f"✅ EXTRAÍDO (parcial): {origen_norm} -> {destino_norm}")
                                 return origen_norm, destino_norm
                     break
     
@@ -388,9 +494,11 @@ def extraer_origen_destino(mensaje):
             origen = m[:idx_a].strip()
             destino = m[idx_a + 3:].strip()
             if "de" not in origen.split():
+                print(f"  → Formato simple: origen='{origen}', destino='{destino}'")
                 origen_norm = normalizar_localidad(origen)
                 destino_norm = normalizar_localidad(destino)
                 if origen_norm and destino_norm:
+                    print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
                     return origen_norm, destino_norm
                 if origen_norm:
                     palabras_destino = destino.split()
@@ -398,8 +506,10 @@ def extraer_origen_destino(mensaje):
                         posible_destino = " ".join(palabras_destino[:j])
                         destino_norm = normalizar_localidad(posible_destino)
                         if destino_norm:
+                            print(f"✅ EXTRAÍDO (parcial): {origen_norm} -> {destino_norm}")
                             return origen_norm, destino_norm
     
+    print("❌ No se pudo extraer")
     return None, None
 
 def interpretar_fecha(mensaje):
@@ -417,6 +527,7 @@ def interpretar_fecha(mensaje):
             fecha = datetime(anio, mes, dia, tzinfo=hoy.tzinfo)
             if fecha < hoy:
                 fecha = datetime(anio + 1, mes, dia, tzinfo=hoy.tzinfo)
+            print(f"📅 Fecha detectada: {fecha.strftime('%d/%m/%Y')}")
             return fecha
         except:
             pass
@@ -435,15 +546,19 @@ def interpretar_fecha(mensaje):
                 fecha = datetime(hoy.year, mes, dia, tzinfo=hoy.tzinfo)
                 if fecha < hoy:
                     fecha = datetime(hoy.year + 1, mes, dia, tzinfo=hoy.tzinfo)
+                print(f"📅 Fecha detectada: {fecha.strftime('%d/%m/%Y')}")
                 return fecha
             except:
                 pass
     
     if "mañana" in m or "manana" in m:
+        print("📅 Fecha: mañana")
         return hoy + timedelta(days=1)
     if "hoy" in m:
+        print("📅 Fecha: hoy")
         return hoy
     
+    print("📅 Fecha: hoy (por defecto)")
     return hoy
 
 def hora_a_minutos(h):
@@ -573,6 +688,24 @@ def mostrar_menu():
     )
 
 def no_entendido_inteligente(mensaje):
+    m = mensaje.lower().strip()
+    
+    localidades_conocidas = ["parana", "viale", "tabossi", "sosa", "maria grande"]
+    tiene_localidad = any(loc in m for loc in localidades_conocidas)
+    
+    if "precio" in m and not tiene_localidad:
+        return (
+            "🤔 *Para consultar un precio, necesito el origen y destino.*\n\n"
+            "✍️ *Escribí por ejemplo:*\n"
+            "• 'Precio de Parana a Viale'"
+        )
+    
+    if tiene_localidad and " a " not in m:
+        return (
+            f"🤔 *Veo que mencionaste una localidad, pero faltaría la palabra 'a'.*\n\n"
+            f"✍️ *Probá con:* 'De {mensaje} a ...'"
+        )
+    
     return (
         "🤔 *No entendí lo que escribiste.*\n\n"
         "✅ *Frases que funcionan:*\n"
@@ -612,56 +745,116 @@ def whatsapp_reply():
     try:
         incoming_msg = request.values.get('Body', '').strip()
         sender = request.values.get('From', '')
-        print(f"\n📩 MENSAJE: '{incoming_msg}' de {sender}")
+        print(f"\n📩 MENSAJE RECIBIDO: '{incoming_msg}' de {sender}")
+        
+        registrar_interaccion(sender, incoming_msg)
         
         resp = MessagingResponse()
         msg = resp.message()
         
-        # Inicializar sesión
         if sender not in session:
             session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
         ctx = session[sender]
         
-        # Comandos dueño
+        # ============================================
+        # COMANDOS DEL DUEÑO
+        # ============================================
         if incoming_msg.lower() == "/estadisticas" and sender == NUMERO_DUENIO:
-            msg.body("📊 Estadísticas disponibles en el panel de Render")
+            print("✅ Comando: estadísticas")
+            r = resumen_stats()
+            top_destinos = destinos_mas_frecuentes()
+            top_horarios = horarios_mas_consultados()
+            
+            texto_destinos = "\n".join([f"• {d}: {c}" for d, c in top_destinos]) if top_destinos else "• (sin datos)"
+            texto_horarios = "\n".join([f"• {h}: {c}" for h, c in top_horarios]) if top_horarios else "• (sin datos)"
+            
+            msg.body(
+                f"📊 *ESTADÍSTICAS*\n\n"
+                f"👥 Usuarios únicos: {r['total_usuarios']}\n"
+                f"💬 Mensajes totales: {r['total_mensajes']}\n"
+                f"📅 Usuarios hoy: {r['usuarios_hoy']}\n"
+                f"📆 Usuarios última semana: {r['usuarios_semana']}\n"
+                f"🔄 Último reinicio: {r['ultimo_reinicio']}\n\n"
+                f"🔥 *Destinos más consultados:*\n{texto_destinos}\n\n"
+                f"⏰ *Horarios más consultados:*\n{texto_horarios}"
+            )
             return str(resp)
         
         if incoming_msg.lower() == "/limites" and sender == NUMERO_DUENIO:
+            print("✅ Comando: límites IA")
             limites = cargar_limites_ia()
             config = limites["config"]
             total_usuarios = len(limites["usuarios"])
-            msg.body(f"📊 *LÍMITES IA*\n\n⚙️ Máx/día: {config['max_por_dia']}\n📅 Máx/mes: {config['max_por_mes']}\n⏱️ Anti-spam: {config['min_segundos_entre']}s\n👥 Usuarios: {total_usuarios}")
+            
+            # Usuarios top consumidores
+            top_usuarios = []
+            for uid, data in limites["usuarios"].items():
+                top_usuarios.append((uid, data.get("consultas_mes", 0)))
+            top_usuarios.sort(key=lambda x: x[1], reverse=True)
+            top_texto = "\n".join([f"• {uid[:20]}: {c}" for uid, c in top_usuarios[:5]]) if top_usuarios else "• (sin datos)"
+            
+            msg.body(
+                f"📊 *LÍMITES DE IA*\n\n"
+                f"⚙️ *Configuración:*\n"
+                f"• Máx por día: {config['max_por_dia']}\n"
+                f"• Máx por mes: {config['max_por_mes']}\n"
+                f"• Anti-spam: {config['min_segundos_entre']} seg\n\n"
+                f"👥 *Usuarios activos:* {total_usuarios}\n\n"
+                f"🔥 *Top 5 consumidores (mensual):*\n{top_texto}"
+            )
+            return str(resp)
+        
+        if incoming_msg.lower() == "/sugerencias" and sender == NUMERO_DUENIO:
+            print("✅ Comando: ver sugerencias")
+            if os.path.exists(SUGERENCIAS_FILE):
+                with open(SUGERENCIAS_FILE, 'r', encoding='utf-8') as f:
+                    sugerencias = json.load(f)
+                if not sugerencias:
+                    msg.body("📝 *No hay sugerencias registradas.*")
+                else:
+                    ultimas = sugerencias[-10:]
+                    texto = "📝 *ÚLTIMAS SUGERENCIAS*\n\n"
+                    for s in ultimas:
+                        texto += f"📅 {s['fecha']}\n📞 {s['telefono']}\n💬 {s['mensaje']}\n\n---\n\n"
+                    msg.body(texto)
+            else:
+                msg.body("📝 *No hay sugerencias registradas.*")
             return str(resp)
         
         # Despedida
         if any(p in incoming_msg.lower() for p in ["chau", "adiós", "adios", "bye", "gracias"]):
+            print("✅ Despedida")
             session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
             msg.body(despedida())
             return str(resp)
         
         # Opciones numéricas
         if incoming_msg == "1":
+            print("✅ Opción 1: Horarios")
             ctx["estado"] = "esperando_origen_horarios"
             session[sender] = ctx
             msg.body("📝 Decime de dónde a dónde (ej: De Viale a Parana)")
             return str(resp)
         
         if incoming_msg == "2":
+            print("✅ Opción 2: Precios")
             ctx["estado"] = "esperando_origen_precios"
             session[sender] = ctx
             msg.body("📝 Decime de dónde a dónde (ej: De Viale a Parana)")
             return str(resp)
         
         if incoming_msg == "3":
+            print("✅ Opción 3: Información útil")
             msg.body("📍 *Información útil*\n\nTerminal Paraná: Av. Ramírez 1200\n📞 Contacto: 343 456-7890")
             return str(resp)
         
         if incoming_msg == "4":
+            print("✅ Opción 4: Preguntas frecuentes")
             msg.body("❓ *Preguntas frecuentes*\nEscribí: pago, equipaje, mascota, reclamo")
             return str(resp)
         
         if incoming_msg == "5":
+            print("✅ Opción 5: Sugerencias")
             ctx["estado"] = "esperando_sugerencia"
             session[sender] = ctx
             msg.body("📝 Escribí tu sugerencia:\nTeléfono: tu número\nMensaje: tu texto\n\nO 'Cancelar' para volver")
@@ -693,15 +886,18 @@ def whatsapp_reply():
         
         # Saludo
         if incoming_msg.lower() in ["hola", "buenos dias", "buenas tardes"]:
+            print("✅ Saludo")
             msg.body(mostrar_menu())
             return str(resp)
         
         if incoming_msg.lower() == "ayuda":
+            print("✅ Ayuda detallada")
             msg.body(mostrar_ayuda_detallada())
             return str(resp)
         
         # Procesar precios
         if ctx.get("estado") == "esperando_origen_precios":
+            print("🔍 Estado: esperando origen para PRECIO")
             origen, destino = extraer_origen_destino(incoming_msg)
             if origen and destino:
                 precio = obtener_precio(origen, destino)
@@ -711,6 +907,7 @@ def whatsapp_reply():
                     msg.body(f"💰 El pasaje de {origen} a {destino} cuesta **${precio}**")
                 else:
                     msg.body(f"😕 No tengo precio de {origen} a {destino}")
+                registrar_interaccion(sender, incoming_msg, tipo="precio", consulta=f"{origen}→{destino}")
                 ctx["estado"] = "menu"
                 session[sender] = ctx
                 return str(resp)
@@ -725,6 +922,7 @@ def whatsapp_reply():
         
         # Procesar horarios
         if ctx.get("estado") == "esperando_origen_horarios":
+            print("🔍 Estado: esperando origen para HORARIOS")
             origen, destino = extraer_origen_destino(incoming_msg)
             if origen and destino:
                 fecha = ctx.get("fecha_pendiente") or interpretar_fecha(incoming_msg)
@@ -744,6 +942,7 @@ def whatsapp_reply():
                         msg.body(f"🚌 El primer colectivo sale a las {primero[0]} por {primero[1]}")
                     else:
                         msg.body(f"😕 No hay servicios para {fecha_str}")
+                    registrar_interaccion(sender, incoming_msg, tipo="primer", consulta=f"{origen}→{destino}", horario=primero[0] if primero else None)
                 
                 elif intencion == "proximo":
                     ahora = ahora_argentina()
@@ -753,6 +952,7 @@ def whatsapp_reply():
                     todos.sort(key=lambda x: hora_a_minutos(x[0]))
                     if todos:
                         msg.body(f"🚌 El próximo colectivo sale a las {todos[0][0]} por {todos[0][1]}")
+                        registrar_interaccion(sender, incoming_msg, tipo="proximo", consulta=f"{origen}→{destino}", horario=todos[0][0])
                     else:
                         msg.body(f"😕 No hay más servicios hoy")
                 
@@ -764,11 +964,13 @@ def whatsapp_reply():
                                 ultimo = (resultados[r][-1], r)
                     if ultimo:
                         msg.body(f"🚌 El último colectivo sale a las {ultimo[0]} por {ultimo[1]}")
+                        registrar_interaccion(sender, incoming_msg, tipo="ultimo", consulta=f"{origen}→{destino}", horario=ultimo[0])
                     else:
                         msg.body(f"😕 No hay servicios para {fecha_str}")
                 
                 else:
                     msg.body(formatear_horarios(resultados, origen, destino, fecha_str))
+                    registrar_interaccion(sender, incoming_msg, tipo="horarios", consulta=f"{origen}→{destino}")
                 
                 ctx["ultimo_origen"] = origen
                 ctx["ultimo_destino"] = destino
@@ -787,14 +989,17 @@ def whatsapp_reply():
                 return str(resp)
         
         # Consulta directa
+        print("🔍 Procesando como consulta directa")
         intencion = detectar_intencion(incoming_msg)
         fecha = interpretar_fecha(incoming_msg)
         origen, destino = extraer_origen_destino(incoming_msg)
         
         if origen and destino:
+            print(f"✅ Consulta directa: {origen} → {destino}")
             tipo_dia = obtener_tipo_dia(fecha)
             
             if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "$"]):
+                print("  → Es consulta de PRECIO")
                 precio = obtener_precio(origen, destino)
                 if isinstance(precio, dict):
                     msg.body(f"💰 {origen} → {destino}\n🛣️ Ruta 10: ${precio.get('ruta10', 'N/A')}\n🛣️ Ruta 18: ${precio.get('ruta18', 'N/A')}")
@@ -802,9 +1007,11 @@ def whatsapp_reply():
                     msg.body(f"💰 El pasaje cuesta **${precio}**")
                 else:
                     msg.body(f"😕 No tengo precio")
+                registrar_interaccion(sender, incoming_msg, tipo="precio", consulta=f"{origen}→{destino}")
                 return str(resp)
             
             elif intencion:
+                print(f"  → Es consulta de {intencion.upper()}")
                 resultados = buscar_horarios(origen, destino, tipo_dia)
                 fecha_str = fecha.strftime("%d/%m/%Y")
                 
@@ -816,6 +1023,7 @@ def whatsapp_reply():
                                 primero = (resultados[r][0], r)
                     if primero:
                         msg.body(f"🚌 El primer colectivo el {fecha_str} sale a las {primero[0]} por {primero[1]}")
+                        registrar_interaccion(sender, incoming_msg, tipo="primer", consulta=f"{origen}→{destino}", horario=primero[0])
                     else:
                         msg.body(f"😕 No hay servicios")
                 
@@ -827,6 +1035,7 @@ def whatsapp_reply():
                     todos.sort(key=lambda x: hora_a_minutos(x[0]))
                     if todos:
                         msg.body(f"🚌 El próximo colectivo sale a las {todos[0][0]} por {todos[0][1]}")
+                        registrar_interaccion(sender, incoming_msg, tipo="proximo", consulta=f"{origen}→{destino}", horario=todos[0][0])
                     else:
                         msg.body(f"😕 No hay más servicios hoy")
                 
@@ -838,19 +1047,23 @@ def whatsapp_reply():
                                 ultimo = (resultados[r][-1], r)
                     if ultimo:
                         msg.body(f"🚌 El último colectivo el {fecha_str} sale a las {ultimo[0]} por {ultimo[1]}")
+                        registrar_interaccion(sender, incoming_msg, tipo="ultimo", consulta=f"{origen}→{destino}", horario=ultimo[0])
                     else:
                         msg.body(f"😕 No hay servicios")
                 
                 return str(resp)
             
             else:
+                print("  → Asumiendo consulta de HORARIOS")
                 hora_limite = extraer_hora_limite(incoming_msg)
                 resultados = buscar_horarios(origen, destino, tipo_dia, hora_limite)
                 fecha_str = fecha.strftime("%d/%m/%Y")
                 msg.body(formatear_horarios(resultados, origen, destino, fecha_str))
+                registrar_interaccion(sender, incoming_msg, tipo="horarios", consulta=f"{origen}→{destino}")
                 return str(resp)
         
         # Fallback a IA
+        print("❌ No entendido, intentando con IA...")
         if DEEPSEEK_API_KEY:
             respuesta_ia = consultar_deepseek(incoming_msg, sender)
             if respuesta_ia:
@@ -861,13 +1074,14 @@ def whatsapp_reply():
         return str(resp)
     
     except Exception as e:
-        print(f"❌ ERROR: {e}")
+        print(f"❌ ERROR CRÍTICO: {e}")
         traceback.print_exc()
         resp = MessagingResponse()
-        resp.message().body("⚠️ Error. Intentá de nuevo.")
+        resp.message().body("⚠️ Ocurrió un error. Por favor, intentá de nuevo.")
         return str(resp)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     print(f"🚀 Bot listo en puerto {port} - Anti-spam: 4 segundos")
+    print(f"📊 Estadísticas habilitadas - Comandos dueño: /estadisticas, /limites, /sugerencias")
     app.run(host='0.0.0.0', port=port, debug=False)

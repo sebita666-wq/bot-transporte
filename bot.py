@@ -15,7 +15,7 @@ app = Flask(__name__)
 # ============================================
 # CONFIGURACIÓN INICIAL
 # ============================================
-app.permanent_session_lifetime = timedelta(minutes=30)  # ✅ CORREGIDO: antes era 3 minutos
+app.permanent_session_lifetime = timedelta(minutes=30)
 
 os.environ['TZ'] = 'America/Argentina/Buenos_Aires'
 try:
@@ -30,14 +30,13 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
 STATS_FILE = 'estadisticas.json'
 SUGERENCIAS_FILE = 'sugerencias.json'
 
-# DeepSeek API Key
 DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
 app.secret_key = SECRET_KEY
 
 # ============================================
-# CONTROL DE LÍMITES DE IA POR USUARIO (NUEVO)
+# CONTROL DE LÍMITES DE IA POR USUARIO
 # ============================================
 LIMITES_IA_FILE = 'limites_ia.json'
 
@@ -50,7 +49,7 @@ def cargar_limites_ia():
         "config": {
             "max_por_dia": 15,
             "max_por_mes": 100,
-            "min_segundos_entre": 10,
+            "min_segundos_entre": 4,  # ✅ CAMBIADO A 4 SEGUNDOS
             "reset_hora": 3
         }
     }
@@ -60,10 +59,102 @@ def guardar_limites_ia(data):
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 def verificar_limite_ia(sender):
+    """Verifica si un usuario puede usar IA (con anti-spam de 4 segundos)"""
     limites = cargar_limites_ia()
     config = limites["config"]
     ahora = ahora_argentina()
     fecha_hoy = ahora.strftime("%Y-%m-%d")
+    
+    # Inicializar usuario si no existe
+    if sender not in limites["usuarios"]:
+        limites["usuarios"][sender] = {
+            "consultas_hoy": 0,
+            "consultas_mes": 0,
+            "ultima_consulta": None,
+            "historial_fechas": [],
+            "bloqueado_hasta": None,
+            "ultima_fecha_dia": fecha_hoy
+        }
+    
+    user = limites["usuarios"][sender]
+    
+    # ✅ CORREGIDO: Verificar que existan todas las claves
+    if "bloqueado_hasta" not in user:
+        user["bloqueado_hasta"] = None
+    if "ultima_fecha_dia" not in user:
+        user["ultima_fecha_dia"] = fecha_hoy
+    if "historial_fechas" not in user:
+        user["historial_fechas"] = []
+    if "consultas_hoy" not in user:
+        user["consultas_hoy"] = 0
+    if "consultas_mes" not in user:
+        user["consultas_mes"] = 0
+    if "ultima_consulta" not in user:
+        user["ultima_consulta"] = None
+    
+    # Verificar bloqueo
+    if user["bloqueado_hasta"]:
+        try:
+            bloqueo_hasta = datetime.fromisoformat(user["bloqueado_hasta"])
+            if ahora < bloqueo_hasta:
+                minutos_restantes = int((bloqueo_hasta - ahora).total_seconds() / 60)
+                guardar_limites_ia(limites)
+                return False, f"⏰ *Límite temporal*\nPodés volver en {minutos_restantes} minutos. 😊"
+            else:
+                user["bloqueado_hasta"] = None
+        except:
+            user["bloqueado_hasta"] = None
+    
+    # Limpiar historial de fechas (consultas por mes)
+    fechas_validas = []
+    for fecha_str in user.get("historial_fechas", []):
+        try:
+            fecha_consulta = datetime.fromisoformat(fecha_str)
+            if (ahora - fecha_consulta).days < 30:
+                fechas_validas.append(fecha_str)
+        except:
+            pass
+    user["historial_fechas"] = fechas_validas
+    user["consultas_mes"] = len(fechas_validas)
+    
+    # Resetear contador diario si es nuevo día
+    if user.get("ultima_fecha_dia") != fecha_hoy:
+        user["consultas_hoy"] = 0
+        user["ultima_fecha_dia"] = fecha_hoy
+    
+    # ✅ ANTI-SPAM DE 4 SEGUNDOS
+    if user.get("ultima_consulta"):
+        try:
+            ultima = datetime.fromisoformat(user["ultima_consulta"])
+            segundos_diferencia = (ahora - ultima).total_seconds()
+            if segundos_diferencia < config["min_segundos_entre"]:
+                espera = int(config["min_segundos_entre"] - segundos_diferencia)
+                guardar_limites_ia(limites)
+                return False, f"⏳ Esperá {espera} segundos entre consultas. 😊"
+        except:
+            pass
+    
+    # Verificar límite diario
+    if user["consultas_hoy"] >= config["max_por_dia"]:
+        user["bloqueado_hasta"] = (ahora + timedelta(hours=24)).isoformat()
+        guardar_limites_ia(limites)
+        return False, f"📊 Límite diario alcanzado ({config['max_por_dia']}). Volvé mañana. 😊"
+    
+    # Verificar límite mensual
+    if user["consultas_mes"] >= config["max_por_mes"]:
+        user["bloqueado_hasta"] = (ahora + timedelta(days=30)).isoformat()
+        guardar_limites_ia(limites)
+        return False, f"📅 Límite mensual alcanzado ({config['max_por_mes']}). Volvé el mes que viene. 😊"
+    
+    # Guardar cambios antes de salir
+    guardar_limites_ia(limites)
+    
+    return True, None
+
+def registrar_consulta_ia(sender, exito=True):
+    """Registra una consulta a IA (exitosa o no)"""
+    limites = cargar_limites_ia()
+    ahora = ahora_argentina()
     
     if sender not in limites["usuarios"]:
         limites["usuarios"][sender] = {
@@ -71,60 +162,8 @@ def verificar_limite_ia(sender):
             "consultas_mes": 0,
             "ultima_consulta": None,
             "historial_fechas": [],
-            "bloqueado_hasta": None
-        }
-    
-    user = limites["usuarios"][sender]
-    
-    if user["bloqueado_hasta"]:
-        bloqueo_hasta = datetime.fromisoformat(user["bloqueado_hasta"])
-        if ahora < bloqueo_hasta:
-            minutos_restantes = int((bloqueo_hasta - ahora).total_seconds() / 60)
-            return False, f"⏰ *Límite temporal*\nPodés volver en {minutos_restantes} minutos. 😊"
-        else:
-            user["bloqueado_hasta"] = None
-    
-    fechas_validas = []
-    for fecha_str in user.get("historial_fechas", []):
-        fecha_consulta = datetime.fromisoformat(fecha_str)
-        if (ahora - fecha_consulta).days < 30:
-            fechas_validas.append(fecha_str)
-    user["historial_fechas"] = fechas_validas
-    user["consultas_mes"] = len(fechas_validas)
-    
-    if user.get("ultima_fecha_dia") != fecha_hoy:
-        user["consultas_hoy"] = 0
-        user["ultima_fecha_dia"] = fecha_hoy
-    
-    if user.get("ultima_consulta"):
-        ultima = datetime.fromisoformat(user["ultima_consulta"])
-        segundos_diferencia = (ahora - ultima).total_seconds()
-        if segundos_diferencia < config["min_segundos_entre"]:
-            espera = int(config["min_segundos_entre"] - segundos_diferencia)
-            return False, f"⏳ Esperá {espera} segundos entre consultas. 😊"
-    
-    if user["consultas_hoy"] >= config["max_por_dia"]:
-        user["bloqueado_hasta"] = (ahora + timedelta(hours=24)).isoformat()
-        guardar_limites_ia(limites)
-        return False, f"📊 Límite diario alcanzado ({config['max_por_dia']}). Volvé mañana. 😊"
-    
-    if user["consultas_mes"] >= config["max_por_mes"]:
-        user["bloqueado_hasta"] = (ahora + timedelta(days=30)).isoformat()
-        guardar_limites_ia(limites)
-        return False, f"📅 Límite mensual alcanzado ({config['max_por_mes']}). Volvé el mes que viene. 😊"
-    
-    return True, None
-
-def registrar_consulta_ia(sender, exito=True):
-    limites = cargar_limites_ia()
-    ahora = ahora_argentina()
-    
-    if sender not in limites["usuarios"]:
-        limites["usuarios"][sender] = {
-            "consultas_hoy": 0,
-            "consultas_mes": 0,
-            "ultima_consulta": None,
-            "historial_fechas": []
+            "bloqueado_hasta": None,
+            "ultima_fecha_dia": ahora.strftime("%Y-%m-%d")
         }
     
     user = limites["usuarios"][sender]
@@ -135,9 +174,11 @@ def registrar_consulta_ia(sender, exito=True):
         user["ultima_fecha_dia"] = fecha_hoy
     
     if exito:
-        user["consultas_hoy"] += 1
+        user["consultas_hoy"] = user.get("consultas_hoy", 0) + 1
         ahora_str = ahora.isoformat()
         user["ultima_consulta"] = ahora_str
+        if "historial_fechas" not in user:
+            user["historial_fechas"] = []
         user["historial_fechas"].append(ahora_str)
         user["consultas_mes"] = len(user["historial_fechas"])
     
@@ -221,6 +262,7 @@ duraciones = cargar_duraciones()
 # FUNCIÓN DEEPSEEK CON LÍMITES
 # ============================================
 def consultar_deepseek(mensaje, sender, historial=None):
+    """Envía consulta a DeepSeek con verificación de límites"""
     if not DEEPSEEK_API_KEY:
         return None
     
@@ -282,6 +324,7 @@ def consultar_deepseek(mensaje, sender, historial=None):
             return respuesta
         else:
             registrar_consulta_ia(sender, exito=False)
+            print(f"❌ DeepSeek error: {response.status_code}")
             return None
     except Exception as e:
         registrar_consulta_ia(sender, exito=False)
@@ -372,7 +415,7 @@ def interpretar_fecha(mensaje):
             anio += 2000
         try:
             fecha = datetime(anio, mes, dia, tzinfo=hoy.tzinfo)
-            if fecha < hoy:  # ✅ CORREGIDO: manejo de año nuevo
+            if fecha < hoy:
                 fecha = datetime(anio + 1, mes, dia, tzinfo=hoy.tzinfo)
             return fecha
         except:
@@ -423,7 +466,7 @@ def buscar_horarios(origen, destino, tipo, hora_limite=None):
     resultados = {"R10": [], "R18": [], "R10+R18": []}
     
     for h in obtener_horarios_por_dia(tipo):
-        if isinstance(h, dict) and h.get("origen") == origen and h.get("destino") == destino:  # ✅ CORREGIDO: validación
+        if isinstance(h, dict) and h.get("origen") == origen and h.get("destino") == destino:
             if hora_limite is None or (hora_a_minutos(h["hora"]) and hora_a_minutos(h["hora"]) >= hora_limite):
                 ruta = h.get("ruta", "R18")
                 if ruta in resultados:
@@ -574,7 +617,7 @@ def whatsapp_reply():
         resp = MessagingResponse()
         msg = resp.message()
         
-        # Inicializar sesión con .get() para evitar KeyError ✅
+        # Inicializar sesión
         if sender not in session:
             session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
         ctx = session[sender]
@@ -826,5 +869,5 @@ def whatsapp_reply():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port}")
+    print(f"🚀 Bot listo en puerto {port} - Anti-spam: 4 segundos")
     app.run(host='0.0.0.0', port=port, debug=False)

@@ -23,9 +23,10 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN HÍBRIDA CON BUGS CORREGIDOS")
+print("🚀 BOT INICIADO - VERSIÓN FINAL CON CONTEXTO Y MEMORIA")
 print("✅ Anti-spam: 4 segundos")
-print("✅ Sesión: 30 minutos")
+print("✅ Límites IA: 20/día, 150/mes")
+print("✅ Contexto: 5 minutos de memoria")
 print("✅ Logs detallados activados")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
@@ -50,8 +51,8 @@ def cargar_limites_ia():
     return {
         "usuarios": {},
         "config": {
-            "max_por_dia": 15,
-            "max_por_mes": 100,
+            "max_por_dia": 20,
+            "max_por_mes": 150,
             "min_segundos_entre": 4,
             "reset_hora": 3
         }
@@ -79,7 +80,6 @@ def verificar_limite_ia(sender):
     
     user = limites["usuarios"][sender]
     
-    # Asegurar que existan todas las claves
     if "bloqueado_hasta" not in user:
         user["bloqueado_hasta"] = None
     if "ultima_fecha_dia" not in user:
@@ -180,8 +180,82 @@ def ahora_argentina():
     return datetime.now(timezone)
 
 # ============================================
-# ESTADÍSTICAS (CORREGIDAS)
+# PALABRAS PROHIBIDAS PARA IA
 # ============================================
+
+def es_consulta_prohibida_para_ia(mensaje):
+    """Retorna True si la consulta NO debe ser respondida por IA"""
+    
+    m = mensaje.lower().strip()
+    
+    palabras_precio = [
+        "precio", "cuesta", "costo", "tarifa", "pasaje", "vale", 
+        "$", "pesos", "sale", "cuánto", "cuanto", "valor"
+    ]
+    
+    palabras_horario = [
+        "horario", "pasa", "primer", "primero", "próximo", "proximo",
+        "último", "ultimo", "cuándo", "cuando", "hora", "horas"
+    ]
+    
+    palabras_sugerencia = [
+        "sugerencia", "reclamo", "queja", "problema", "error",
+        "falla", "falta", "sugiero", "propongo"
+    ]
+    
+    palabras_faq = [
+        "pago", "equipaje", "mascota", "perro", "gato", "bulto",
+        "valija", "maleta", "menor", "niño", "nene", "bebe", "bebé",
+        "descuento", "sube", "tarjeta", "qr", "mercadopago",
+        "objeto perdido", "perdí", "olvidé", "asiento", "sentarme"
+    ]
+    
+    palabras_info = [
+        "terminal", "dirección", "direccion", "teléfono", "telefono",
+        "contacto", "atienden", "web", "oficina"
+    ]
+    
+    palabras_prohibidas = (palabras_precio + palabras_horario + 
+                          palabras_sugerencia + palabras_faq + palabras_info)
+    
+    for palabra in palabras_prohibidas:
+        if palabra in m:
+            print(f"🚫 CONSULTA PROHIBIDA para IA: contiene '{palabra}'")
+            return True
+    
+    return False
+
+# ============================================
+# VERIFICACIÓN DE CONTEXTO ACTIVO (5 minutos)
+# ============================================
+
+def contexto_activo(ctx):
+    """Verifica si el contexto sigue vigente (menos de 5 minutos)"""
+    if not ctx.get("ultimo_mensaje_time"):
+        return False
+    
+    ahora = ahora_argentina()
+    tiempo_transcurrido = (ahora - ctx["ultimo_mensaje_time"]).total_seconds()
+    
+    if tiempo_transcurrido > 300:
+        print(f"⏰ Contexto expirado después de {int(tiempo_transcurrido)} segundos")
+        return False
+    
+    return True
+
+def limpiar_contexto(ctx):
+    """Limpia el contexto de conversación"""
+    ctx["ultimo_origen"] = None
+    ctx["ultimo_destino"] = None
+    ctx["ultima_intencion"] = None
+    ctx["ultimo_mensaje_time"] = None
+    print("🧹 Contexto limpiado")
+    return ctx
+
+# ============================================
+# ESTADÍSTICAS
+# ============================================
+
 def cargar_stats():
     if os.path.exists(STATS_FILE):
         with open(STATS_FILE, 'r', encoding='utf-8') as f:
@@ -276,6 +350,7 @@ def horarios_mas_consultados():
 # ============================================
 # VALIDAR ARCHIVOS JSON
 # ============================================
+
 def validar_archivos_json():
     archivos = ['horarios.json', 'tarifas.json', 'feriados.json', 'duraciones.json']
     for archivo in archivos:
@@ -292,6 +367,7 @@ if not validar_archivos_json():
 # ============================================
 # CARGAR DATOS
 # ============================================
+
 def cargar_feriados():
     try:
         with open('feriados.json', 'r', encoding='utf-8') as f:
@@ -350,9 +426,10 @@ print(f"✅ Tarifas cargadas: {len(localidades)} localidades")
 print(f"🤖 DeepSeek IA: {'Habilitada' if DEEPSEEK_API_KEY else 'No configurada'}")
 
 # ============================================
-# FUNCIÓN DEEPSEEK CON LÍMITES
+# FUNCIÓN DEEPSEEK CON CONTEXTO Y LÍMITES
 # ============================================
-def consultar_deepseek(mensaje, sender, historial=None):
+
+def consultar_deepseek(mensaje, sender, contexto=None):
     if not DEEPSEEK_API_KEY:
         print("⚠️ DeepSeek no configurado")
         return None
@@ -361,6 +438,15 @@ def consultar_deepseek(mensaje, sender, historial=None):
     if not puede_usar:
         print(f"⛔ IA bloqueada para {sender}: {mensaje_limite[:50]}...")
         return mensaje_limite
+    
+    # Enriquecer mensaje con contexto si existe
+    mensaje_con_contexto = mensaje
+    if contexto and contexto.get("ultimo_origen") and contexto.get("ultimo_destino"):
+        contexto_texto = f"[CONTEXTO: El usuario está preguntando sobre viajes de {contexto['ultimo_origen']} a {contexto['ultimo_destino']}. "
+        contexto_texto += f"Pregunta original del usuario: '{mensaje}'. "
+        contexto_texto += f"Por favor, respondé teniendo en cuenta este contexto. Si te preguntan por el clima, mencioná específicamente el clima en las localidades del contexto.]"
+        mensaje_con_contexto = contexto_texto
+        print(f"🧠 IA recibe contexto: {contexto['ultimo_origen']} → {contexto['ultimo_destino']}")
     
     print(f"🤖 Consultando a DeepSeek: '{mensaje[:50]}...'")
     
@@ -374,20 +460,26 @@ def consultar_deepseek(mensaje, sender, historial=None):
 
 📍 *Localidades:* Paraná, Viale, Tabossi, Sosa, María Grande, Aldea San Antonio, Genolet, Sauce, 3 Bocas, Quebracho, El Ramblón.
 
-📋 *REGLAS:*
-1️⃣ Respondé con EMOTICONES: 🚌 📍 💰 ✅ ❌ 😊 ⏰ 📅
-2️⃣ Usá *negritas* con asteriscos
-3️⃣ Usá saltos de línea cada 2-3 oraciones
-4️⃣ Sé BREVE y AMIGABLE
-5️⃣ Si no sabés, decí: "No tengo esa información. Consultá en la terminal. 😊"
-6️⃣ Siempre cerrá con una pregunta amigable"""
+📋 *REGLAS IMPORTANTES:*
+
+1️⃣ NO respondas sobre PRECIOS, HORARIOS, SUGERENCIAS o PREGUNTAS FRECUENTES (FAQ). Esas consultas las maneja el sistema automático.
+
+2️⃣ Si el usuario pregunta sobre el CLIMA, respondé basándote en el contexto que se te proporciona. Mencioná específicamente las localidades del contexto.
+
+3️⃣ Si el usuario pregunta por AYUDA o CÓMO USAR el bot, explicá que puede escribir:
+   - 'De Parana a Viale' para horarios
+   - 'Precio de Parana a Viale' para precios
+   - 'Hola' para volver al menú
+
+4️⃣ Respondé con EMOTICONES: 🚌 📍 💰 ✅ ❌ 😊 ⏰ 📅
+5️⃣ Usá *negritas* con asteriscos
+6️⃣ Sé BREVE y AMIGABLE
+7️⃣ Si no sabés algo, decí: "No tengo esa información. Te recomiendo consultar en la terminal o escribir 'Ayuda'. 😊"
+8️⃣ Siempre cerrá con una pregunta amigable"""
             }
         ]
         
-        if historial:
-            mensajes.extend(historial[-5:])
-        
-        mensajes.append({"role": "user", "content": mensaje})
+        mensajes.append({"role": "user", "content": mensaje_con_contexto})
         
         headers = {
             "Content-Type": "application/json",
@@ -431,8 +523,102 @@ def consultar_deepseek(mensaje, sender, historial=None):
         return None
 
 # ============================================
+# FAQ COMPLETO (RESTAURADO)
+# ============================================
+
+def responder_faq(mensaje):
+    m = mensaje.lower()
+    if any(p in m for p in ["pago", "pagar", "sube", "tarjeta", "qr", "mercadopago", "debito", "credito"]):
+        return ("💳 *Medios de pago*\n\n"
+                "A partir de Febrero de 2026, el único medio de pago disponible es a través de la **red SUBE**.\n"
+                "Podés pagar con:\n"
+                "• Tarjeta SUBE\n"
+                "• Tarjeta de débito o crédito\n"
+                "• Mercado Pago QR\n\n"
+                "Todos los pagos se realizan en la terminal antes de subir.")
+    
+    if any(p in m for p in ["equipaje", "valija", "bulto", "maleta"]):
+        return ("🧳 *Límite de equipaje*\n\n"
+                "Podés llevar hasta **2 bultos por persona** con un peso máximo total de **10 kg**.\n"
+                "Si necesitás llevar más, consultanos con anticipación para evaluar disponibilidad en bodega.")
+    
+    if any(p in m for p in ["mascota", "perro", "gato", "animal"]):
+        return ("🐕 *Mascotas a bordo*\n\n"
+                "• Mascotas pequeñas viajan **en jaula o bolso transportador**, únicamente en **bodega** (por disposición de Transporte Provincial).\n"
+                "• **Perros de asistencia** viajan sin restricciones.\n"
+                "• No se permiten mascotas sueltas en el interior del colectivo.")
+    
+    if any(p in m for p in ["perdi", "objeto", "olvide", "cartera", "celular", "llaves"]):
+        return ("📞 *Objetos perdidos*\n\n"
+                "Si perdiste algo en un colectivo, comunicate al 📱 **343 456-7890** o acercate a nuestra empresa en:\n"
+                "📍 **Guetto de Varsovia 211, Paraná** (Empresa Grupo ERSA)\n\n"
+                "Tené a mano el día y horario del viaje para ayudarte a ubicarlo.")
+    
+    if any(p in m for p in ["descuento", "estudiante", "jubilado", "beneficio"]):
+        return ("👨‍🎓 *Descuentos*\n\n"
+                "El descuento lo aplica directamente el **sistema SUBE**.\n"
+                "Nosotros no podemos gestionar ningún tipo de descuento. Solo aquellas personas que tengan el beneficio activado en su tarjeta SUBE podrán acceder a la tarifa reducida.")
+    
+    if any(p in m for p in ["niño", "nene", "bebe", "menor"]):
+        return ("👶 *Menores*\n\n"
+                "• **Menores de 5 años** que viajen en el regazo de un adulto abonan un **seguro mínimo** ($1.852).\n"
+                "• **A partir de los 5 años**, deben pagar pasaje completo.")
+    
+    if any(p in m for p in ["asiento", "sentarme", "lugar", "elegir"]):
+        return ("🪑 *Asignación de asientos*\n\n"
+                "La asignación de asientos es **por orden de llegada**.\n"
+                "Si necesitás un lugar especial (ej. cerca de la puerta por movilidad reducida), avisale al chofer al subir.")
+    
+    if any(p in m for p in ["reclamo", "problema", "queja"]):
+        return ("📝 *Reclamos y sugerencias*\n\n"
+                "Para enviar un reclamo o sugerencia, escribí *5* en el menú principal y seguí las instrucciones.\n\n"
+                "También podés acercarte a cualquiera de nuestras terminales o escribirnos a este mismo WhatsApp.\n"
+                "Tu opinión nos ayuda a mejorar.")
+    
+    return None
+
+def mostrar_faq():
+    return (
+        "❓ *Preguntas frecuentes*\n\n"
+        "Escribí la palabra clave que te interese:\n\n"
+        "💰 *pago* – Medios de pago aceptados\n"
+        "🧳 *equipaje* – Límite de bultos\n"
+        "🐕 *mascota* – Cómo viajan las mascotas\n"
+        "👮 *boleto seguro* – Para policías y menores\n"
+        "👶 *menores* – Pasajes para niños\n"
+        "📞 *objetos perdidos* – Dónde reclamar\n"
+        "💺 *asiento* – Asignación de asientos\n"
+        "📝 *reclamo* – Cómo hacer un reclamo\n\n"
+        "➡️ Ej: 'pago', 'equipaje', 'mascota', 'reclamo'"
+    )
+
+def mostrar_info_util():
+    return (
+        "📌 *Información útil*\n\n"
+        "📍 *Terminal Paraná:* Av. Ramírez 1200\n"
+        "📍 *Terminal María Grande:* San Martín 450\n"
+        "📍 *Terminal Viale:* (pendiente)\n\n"
+        "📞 *Teléfono de contacto:* 343 456-7890\n"
+        "⏰ *Atención:* Lun a Dom 6:00 a 22:00\n\n"
+        "🌐 *Web:* (próximamente)"
+    )
+
+def mostrar_menu_sugerencia():
+    return (
+        "📝 *Envío de sugerencias / reclamos*\n\n"
+        "Por favor, escribí tu mensaje en el siguiente formato:\n\n"
+        "*Teléfono:* Tu número\n"
+        "*Mensaje:* Tu sugerencia o reclamo\n\n"
+        "📌 *Ejemplo:*\n"
+        "Teléfono: 3435123456\n"
+        "Mensaje: El colectivo de las 15:30 siempre llega tarde\n\n"
+        "✍️ *Escribí 'Cancelar' para volver al menú.*"
+    )
+
+# ============================================
 # NORMALIZACIÓN
 # ============================================
+
 def normalizar_localidad(texto):
     if not texto:
         return None
@@ -735,6 +921,7 @@ def despedida():
 # ============================================
 # WEBHOOK PRINCIPAL
 # ============================================
+
 @app.route('/whatsapp', methods=['POST'])
 def whatsapp_reply():
     if 'X-Forwarded-Proto' in request.headers:
@@ -753,8 +940,23 @@ def whatsapp_reply():
         msg = resp.message()
         
         if sender not in session:
-            session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
+            session[sender] = {
+                "ultimo_origen": None,
+                "ultimo_destino": None,
+                "estado": "menu",
+                "intencion": None,
+                "fecha_pendiente": None,
+                "ultimo_mensaje_time": ahora_argentina()
+            }
         ctx = session[sender]
+        
+        # Actualizar timestamp del último mensaje
+        ctx["ultimo_mensaje_time"] = ahora_argentina()
+        
+        # Verificar si el contexto sigue activo (5 minutos)
+        if not contexto_activo(ctx):
+            ctx = limpiar_contexto(ctx)
+            session[sender] = ctx
         
         # ============================================
         # COMANDOS DEL DUEÑO
@@ -786,7 +988,6 @@ def whatsapp_reply():
             config = limites["config"]
             total_usuarios = len(limites["usuarios"])
             
-            # Usuarios top consumidores
             top_usuarios = []
             for uid, data in limites["usuarios"].items():
                 top_usuarios.append((uid, data.get("consultas_mes", 0)))
@@ -821,14 +1022,36 @@ def whatsapp_reply():
                 msg.body("📝 *No hay sugerencias registradas.*")
             return str(resp)
         
-        # Despedida
-        if any(p in incoming_msg.lower() for p in ["chau", "adiós", "adios", "bye", "gracias"]):
-            print("✅ Despedida")
-            session[sender] = {"ultimo_origen": None, "ultimo_destino": None, "estado": "menu", "intencion": None, "fecha_pendiente": None}
-            msg.body(despedida())
+        # ============================================
+        # FAQ - PRIMERO REVISAR
+        # ============================================
+        faq = responder_faq(incoming_msg)
+        if faq:
+            print("✅ Pregunta frecuente detectada")
+            msg.body(faq)
             return str(resp)
         
-        # Opciones numéricas
+        # ============================================
+        # LIMPIAR CONTEXTO CON SALUDOS/DESPEDIDAS
+        # ============================================
+        if incoming_msg.lower() in ["hola", "buenos dias", "buenas tardes", "chau", "adiós", "adios", "bye", "gracias"]:
+            print("✅ Saludo o despedida - limpiando contexto")
+            ctx = limpiar_contexto(ctx)
+            session[sender] = ctx
+            if any(p in incoming_msg.lower() for p in ["chau", "adiós", "adios", "bye", "gracias"]):
+                msg.body(despedida())
+            else:
+                msg.body(mostrar_menu())
+            return str(resp)
+        
+        if incoming_msg.lower() == "ayuda":
+            print("✅ Ayuda detallada")
+            msg.body(mostrar_ayuda_detallada())
+            return str(resp)
+        
+        # ============================================
+        # OPCIONES NUMÉRICAS
+        # ============================================
         if incoming_msg == "1":
             print("✅ Opción 1: Horarios")
             ctx["estado"] = "esperando_origen_horarios"
@@ -845,22 +1068,24 @@ def whatsapp_reply():
         
         if incoming_msg == "3":
             print("✅ Opción 3: Información útil")
-            msg.body("📍 *Información útil*\n\nTerminal Paraná: Av. Ramírez 1200\n📞 Contacto: 343 456-7890")
+            msg.body(mostrar_info_util())
             return str(resp)
         
         if incoming_msg == "4":
             print("✅ Opción 4: Preguntas frecuentes")
-            msg.body("❓ *Preguntas frecuentes*\nEscribí: pago, equipaje, mascota, reclamo")
+            msg.body(mostrar_faq())
             return str(resp)
         
         if incoming_msg == "5":
             print("✅ Opción 5: Sugerencias")
             ctx["estado"] = "esperando_sugerencia"
             session[sender] = ctx
-            msg.body("📝 Escribí tu sugerencia:\nTeléfono: tu número\nMensaje: tu texto\n\nO 'Cancelar' para volver")
+            msg.body(mostrar_menu_sugerencia())
             return str(resp)
         
-        # Sugerencias
+        # ============================================
+        # PROCESAR SUGERENCIAS
+        # ============================================
         if ctx.get("estado") == "esperando_sugerencia":
             if incoming_msg.lower() == "cancelar":
                 ctx["estado"] = "menu"
@@ -884,18 +1109,9 @@ def whatsapp_reply():
                 msg.body("📝 Formato incorrecto. Usá:\nTeléfono: 3435123456\nMensaje: tu texto")
                 return str(resp)
         
-        # Saludo
-        if incoming_msg.lower() in ["hola", "buenos dias", "buenas tardes"]:
-            print("✅ Saludo")
-            msg.body(mostrar_menu())
-            return str(resp)
-        
-        if incoming_msg.lower() == "ayuda":
-            print("✅ Ayuda detallada")
-            msg.body(mostrar_ayuda_detallada())
-            return str(resp)
-        
-        # Procesar precios
+        # ============================================
+        # PROCESAR PRECIOS
+        # ============================================
         if ctx.get("estado") == "esperando_origen_precios":
             print("🔍 Estado: esperando origen para PRECIO")
             origen, destino = extraer_origen_destino(incoming_msg)
@@ -908,19 +1124,23 @@ def whatsapp_reply():
                 else:
                     msg.body(f"😕 No tengo precio de {origen} a {destino}")
                 registrar_interaccion(sender, incoming_msg, tipo="precio", consulta=f"{origen}→{destino}")
+                ctx["ultimo_origen"] = origen
+                ctx["ultimo_destino"] = destino
                 ctx["estado"] = "menu"
                 session[sender] = ctx
                 return str(resp)
             else:
-                if DEEPSEEK_API_KEY:
-                    respuesta_ia = consultar_deepseek(incoming_msg, sender)
+                if DEEPSEEK_API_KEY and not es_consulta_prohibida_para_ia(incoming_msg):
+                    respuesta_ia = consultar_deepseek(incoming_msg, sender, ctx)
                     if respuesta_ia:
                         msg.body(respuesta_ia)
                         return str(resp)
                 msg.body(no_entendido_inteligente(incoming_msg))
                 return str(resp)
         
-        # Procesar horarios
+        # ============================================
+        # PROCESAR HORARIOS
+        # ============================================
         if ctx.get("estado") == "esperando_origen_horarios":
             print("🔍 Estado: esperando origen para HORARIOS")
             origen, destino = extraer_origen_destino(incoming_msg)
@@ -940,9 +1160,9 @@ def whatsapp_reply():
                                 primero = (resultados[r][0], r)
                     if primero:
                         msg.body(f"🚌 El primer colectivo sale a las {primero[0]} por {primero[1]}")
+                        registrar_interaccion(sender, incoming_msg, tipo="primer", consulta=f"{origen}→{destino}", horario=primero[0])
                     else:
                         msg.body(f"😕 No hay servicios para {fecha_str}")
-                    registrar_interaccion(sender, incoming_msg, tipo="primer", consulta=f"{origen}→{destino}", horario=primero[0] if primero else None)
                 
                 elif intencion == "proximo":
                     ahora = ahora_argentina()
@@ -980,15 +1200,17 @@ def whatsapp_reply():
                 session[sender] = ctx
                 return str(resp)
             else:
-                if DEEPSEEK_API_KEY:
-                    respuesta_ia = consultar_deepseek(incoming_msg, sender)
+                if DEEPSEEK_API_KEY and not es_consulta_prohibida_para_ia(incoming_msg):
+                    respuesta_ia = consultar_deepseek(incoming_msg, sender, ctx)
                     if respuesta_ia:
                         msg.body(respuesta_ia)
                         return str(resp)
                 msg.body(no_entendido_inteligente(incoming_msg))
                 return str(resp)
         
-        # Consulta directa
+        # ============================================
+        # CONSULTA DIRECTA
+        # ============================================
         print("🔍 Procesando como consulta directa")
         intencion = detectar_intencion(incoming_msg)
         fecha = interpretar_fecha(incoming_msg)
@@ -997,6 +1219,11 @@ def whatsapp_reply():
         if origen and destino:
             print(f"✅ Consulta directa: {origen} → {destino}")
             tipo_dia = obtener_tipo_dia(fecha)
+            
+            # Guardar en contexto
+            ctx["ultimo_origen"] = origen
+            ctx["ultimo_destino"] = destino
+            session[sender] = ctx
             
             if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "$"]):
                 print("  → Es consulta de PRECIO")
@@ -1062,10 +1289,12 @@ def whatsapp_reply():
                 registrar_interaccion(sender, incoming_msg, tipo="horarios", consulta=f"{origen}→{destino}")
                 return str(resp)
         
-        # Fallback a IA
-        print("❌ No entendido, intentando con IA...")
-        if DEEPSEEK_API_KEY:
-            respuesta_ia = consultar_deepseek(incoming_msg, sender)
+        # ============================================
+        # FALLBACK A IA (solo si no hay palabras prohibidas)
+        # ============================================
+        if DEEPSEEK_API_KEY and not es_consulta_prohibida_para_ia(incoming_msg):
+            print("❌ No entendido, intentando con IA...")
+            respuesta_ia = consultar_deepseek(incoming_msg, sender, ctx)
             if respuesta_ia:
                 msg.body(respuesta_ia)
                 return str(resp)
@@ -1082,6 +1311,8 @@ def whatsapp_reply():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Bot listo en puerto {port} - Anti-spam: 4 segundos")
+    print(f"🚀 Bot listo en puerto {port}")
     print(f"📊 Estadísticas habilitadas - Comandos dueño: /estadisticas, /limites, /sugerencias")
+    print(f"🧠 Memoria de contexto: 5 minutos")
+    print(f"🚫 IA bloqueada para precios, horarios, FAQ y sugerencias")
     app.run(host='0.0.0.0', port=port, debug=False)

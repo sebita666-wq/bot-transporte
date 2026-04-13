@@ -2,8 +2,8 @@
   "usuarios": {
     "whatsapp:+5493434727811": {
       "primer_contacto": "2026-02-20 18:47:55",
-      "ultimo_contacto": "2026-02-20 19:11:18",
-      "mensajes": 30,
+      "ultimo_contacto": "2026-03-26 22:35:26",
+      "mensajes": 37,
       "consultas": [
         "saludo",
         "no_entendido",
@@ -11,11 +11,17 @@
         "precio_Parana_Sosa",
         "horarios_Parana_Viale"
       ]
+    },
+    "whatsapp: 5493434727811": {
+      "primer_contacto": "2026-03-26 21:27:10",
+      "ultimo_contacto": "2026-03-26 21:27:10",
+      "mensajes": 1,
+      "consultas": []
     }
   },
   "metricas": {
-    "total_usuarios_unicos": 1,
-    "total_mensajes": 30,
+    "total_usuarios_unicos": 2,
+    "total_mensajes": 38,
     "ultimo_reinicio": "2026-02-20 18:47:55"
   }
 }

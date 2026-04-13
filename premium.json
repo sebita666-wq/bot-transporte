@@ -1,0 +1,8 @@
+{
+  "whatsapp:+5493434727811": {
+    "plan": "smart",
+    "activo": true,
+    "vencimiento": "2026-12-31",
+    "funciones": ["audio", "geolocalizacion", "recordatorios"]
+  }
+}

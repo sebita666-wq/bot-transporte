@@ -551,7 +551,7 @@ def responder_faq(mensaje):
     if any(p in m for p in ["perdi", "objeto", "olvide", "cartera", "celular", "llaves"]):
         return ("📞 *Objetos perdidos*\n\n"
                 "Si perdiste algo en un colectivo, comunicate al 📱 **343 456-7890** o acercate a nuestra empresa en:\n"
-                "📍 **Guetto de Varsovia 211, Paraná** (Empresa Grupo ERSA)\n\n"
+                "📍 **Guetto de Varsovia 411, Paraná** (Empresa Grupo ERSA)\n\n"
                 "Tené a mano el día y horario del viaje para ayudarte a ubicarlo.")
     
     if any(p in m for p in ["descuento", "estudiante", "jubilado", "beneficio"]):
@@ -581,25 +581,25 @@ def mostrar_faq():
     return (
         "❓ *Preguntas frecuentes*\n\n"
         "Escribí la palabra clave que te interese:\n\n"
-        "💰 *pago* – Medios de pago aceptados\n"
-        "🧳 *equipaje* – Límite de bultos\n"
-        "🐕 *mascota* – Cómo viajan las mascotas\n"
-        "👮 *boleto seguro* – Para policías y menores\n"
-        "👶 *menores* – Pasajes para niños\n"
-        "📞 *objetos perdidos* – Dónde reclamar\n"
-        "💺 *asiento* – Asignación de asientos\n"
-        "📝 *reclamo* – Cómo hacer un reclamo\n\n"
-        "➡️ Ej: 'pago', 'equipaje', 'mascota', 'reclamo'"
+        "💰 *Pago* – Medios de pago aceptados\n"
+        "🧳 *Equipaje* – Límite de bultos\n"
+        "🐕 *Mascota* – Cómo viajan las mascotas\n"
+        "👮 *Boleto seguro* – Para policías y menores\n"
+        "👶 *Menores* – Pasajes para niños\n"
+        "📞 *Objetos perdidos* – Dónde reclamar\n"
+        "💺 *Asiento* – Asignación de asientos\n"
+        "📝 *Reclamo* – Cómo hacer un reclamo\n\n"
+        "➡️ Ej: 'Pago', 'Equipaje', 'Mascota', 'Reclamo'"
     )
 
 def mostrar_info_util():
     return (
         "📌 *Información útil*\n\n"
-        "📍 *Terminal Paraná:* Av. Ramírez 1200\n"
-        "📍 *Terminal María Grande:* San Martín 450\n"
-        "📍 *Terminal Viale:* (pendiente)\n\n"
-        "📞 *Teléfono de contacto:* 343 456-7890\n"
-        "⏰ *Atención:* Lun a Dom 6:00 a 22:00\n\n"
+        "📍 *Terminal Paraná:* Av. Ramírez 1200, Paraná, Entre Rios.\n"
+        "📍 *Terminal María Grande:* San Martín 450, Maria Grande, Entre Rios.\n"
+        "📍 *Terminal Viale:* San Martín s/n, Viale, Entre Ríos.\n\n"
+        "📞 *Teléfono de contacto:* 0343 424-2303 Empresa ERSA\n"
+        "⏰ *Atención:* Lun a Dom 8:30 a 12:30\n\n"
         "🌐 *Web:* (próximamente)"
     )
 

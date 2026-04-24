@@ -26,18 +26,21 @@ print("✅ Contexto: 5 minutos de memoria")
 
 NUMERO_DUENIO = os.environ.get('NUMERO_DUENIO', "whatsapp:+5493434727811")
 SECRET_KEY = os.environ.get('SECRET_KEY', 'clave_secreta_para_sesiones')
-STATS_FILE = 'estadisticas.json'
-SUGERENCIAS_FILE = 'sugerencias.json'
+
+# ============================================
+# Disco persistente para datos
+# ============================================
+DATA_DIR = '/data'
+os.makedirs(DATA_DIR, exist_ok=True)
+
+STATS_FILE = os.path.join(DATA_DIR, 'estadisticas.json')
+SUGERENCIAS_FILE = os.path.join(DATA_DIR, 'sugerencias.json')
+LIMITES_IA_FILE = os.path.join(DATA_DIR, 'limites_ia.json')
 
 DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
 app.secret_key = SECRET_KEY
-
-# ============================================
-# CONTROL DE LÍMITES DE IA POR USUARIO
-# ============================================
-LIMITES_IA_FILE = 'limites_ia.json'
 
 def cargar_limites_ia():
     if os.path.exists(LIMITES_IA_FILE):

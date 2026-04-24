@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN FINAL")
+print("🚀 BOT INICIADO - VERSIÓN CORREGIDA")
 print("✅ Anti-spam: 4 segundos")
 print("✅ Límites IA: 20/día, 150/mes")
 print("✅ Contexto: 5 minutos de memoria")
@@ -178,8 +178,30 @@ def ahora_argentina():
 # PALABRAS PROHIBIDAS PARA IA
 # ============================================
 
+def normalizar_localidad(texto):
+    if not texto:
+        return None
+    texto = texto.lower().strip()
+    texto = unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode()
+    for loc in localidades:
+        principal_sin_tilde = unicodedata.normalize('NFKD', loc["principal"].lower()).encode('ASCII', 'ignore').decode()
+        if texto == principal_sin_tilde:
+            return loc["principal"]
+        for alias in loc["alias"]:
+            alias_sin_tilde = unicodedata.normalize('NFKD', alias.lower()).encode('ASCII', 'ignore').decode()
+            if texto == alias_sin_tilde:
+                return loc["principal"]
+    return None
+
 def es_consulta_prohibida_para_ia(mensaje):
     m = mensaje.lower().strip()
+    
+    # Si el mensaje tiene dos palabras que son localidades, bloquear IA
+    palabras = m.split()
+    if len(palabras) == 2:
+        if normalizar_localidad(palabras[0]) and normalizar_localidad(palabras[1]):
+            print(f"🚫 CONSULTA PROHIBIDA para IA: posible horario sin formato (origen+destino)")
+            return True
     
     palabras_precio = [
         "precio", "cuesta", "costo", "tarifa", "pasaje", "vale", 
@@ -432,14 +454,18 @@ def consultar_deepseek(mensaje, sender, contexto=None):
 
 🎯 Soy un asistente para consultas de colectivos en Entre Ríos.
 
-📍 *Localidades:* Paraná, Viale, Tabossi, Sosa, María Grande, Aldea San Antonio, Genolet, Sauce, 3 Bocas, Quebracho, El Ramblón.
+📍 *Localidades con horarios:* Paraná, Viale, Tabossi, Sosa, María Grande.
+📍 *Localidades adicionales (solo precios):* Aldea San Antonio, Genolet, Sauce, 3 Bocas, Quebracho, El Ramblón.
 
-⚠️ *IMPORTANTE:* Este es un proyecto independiente y NO OFICIAL. No tengo relación con ninguna empresa de transporte.
+⚠️ *NORMA OBLIGATORIA:* 
+BAJO NINGUNA CIRCUNSTANCIA inventes ni muestres horarios o precios. 
+Si el usuario pregunta por horarios o precios sin usar el formato correcto, 
+respondé: 'Para ver horarios usá el formato "De [origen] a [destino]". Ej: "De Viale a Parana"'
 
 📋 *REGLAS:*
-1️⃣ NO respondas sobre PRECIOS, HORARIOS, SUGERENCIAS o PREGUNTAS FRECUENTES (FAQ). Esas consultas las maneja el sistema automático.
-2️⃣ Si el usuario pregunta por el CLIMA o actividades turísticas, respondé con información general de las localidades.
-3️⃣ Si el usuario pregunta si este bot es oficial, respondé: "No, es un proyecto independiente. Los horarios son orientativos. Si ves un error, escribí 'Hola' y luego la opción 5 para enviar una sugerencia."
+1️⃣ NO respondas sobre PRECIOS, HORARIOS, SUGERENCIAS o PREGUNTAS FRECUENTES (FAQ). 
+2️⃣ Si el usuario pregunta por el CLIMA o actividades turísticas, respondé con información general.
+3️⃣ Si el usuario pregunta si este bot es oficial, respondé: "No, es un proyecto independiente. Los horarios son orientativos. Si ves un error, escribí 'Hola' y luego la opción 5."
 4️⃣ Respondé con EMOTICONES: 🚌 📍 💰 ✅ ❌ 😊 ⏰ 📅
 5️⃣ Usá *negritas* con asteriscos
 6️⃣ Sé BREVE y AMIGABLE
@@ -520,37 +546,27 @@ def mostrar_menu_sugerencia():
     )
 
 # ============================================
-# NORMALIZACIÓN
+# NORMALIZACIÓN Y EXTRACCIÓN
 # ============================================
-
-def normalizar_localidad(texto):
-    if not texto:
-        return None
-    texto = texto.lower().strip()
-    texto = unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode()
-    for loc in localidades:
-        principal_sin_tilde = unicodedata.normalize('NFKD', loc["principal"].lower()).encode('ASCII', 'ignore').decode()
-        if texto == principal_sin_tilde:
-            return loc["principal"]
-        for alias in loc["alias"]:
-            alias_sin_tilde = unicodedata.normalize('NFKD', alias.lower()).encode('ASCII', 'ignore').decode()
-            if texto == alias_sin_tilde:
-                return loc["principal"]
-    return None
 
 def extraer_origen_destino(mensaje):
     m = mensaje.lower().strip()
+    print(f"🔍 EXTRAYENDO de: '{m}'")
+    
     m = re.sub(r'[¿?!¡.,;:]', '', m)
     
     palabras_irrelevantes = ['cual', 'es', 'el', 'la', 'los', 'las', 'y', 'e']
     
     if m.startswith('cual es '):
         m = m[8:]
+        print(f"  → Limpiado 'cual es': '{m}'")
     
     partes = m.split()
     if partes and partes[0] in palabras_irrelevantes:
         m = ' '.join(partes[1:])
+        print(f"  → Limpiado inicio: '{m}'")
     
+    # Buscar formato "de X a Y" (el ÚNICO que aceptamos)
     palabras = m.split()
     for i, palabra in enumerate(palabras):
         if palabra == "de":
@@ -558,9 +574,11 @@ def extraer_origen_destino(mensaje):
                 if palabras[j] == "a":
                     origen = " ".join(palabras[i+1:j])
                     destino = " ".join(palabras[j+1:])
+                    print(f"  → Encontré 'de' en {i}, 'a' en {j}: origen='{origen}', destino='{destino}'")
                     origen_norm = normalizar_localidad(origen)
                     destino_norm = normalizar_localidad(destino)
                     if origen_norm and destino_norm:
+                        print(f"✅ EXTRAÍDO: {origen_norm} -> {destino_norm}")
                         return origen_norm, destino_norm
                     if origen_norm:
                         palabras_destino = destino.split()
@@ -568,28 +586,16 @@ def extraer_origen_destino(mensaje):
                             posible_destino = " ".join(palabras_destino[:k])
                             destino_norm = normalizar_localidad(posible_destino)
                             if destino_norm:
+                                print(f"✅ EXTRAÍDO (parcial): {origen_norm} -> {destino_norm}")
                                 return origen_norm, destino_norm
                     break
     
-    if " a " in m and not m.startswith('de '):
-        idx_a = m.find(" a ")
-        if idx_a != -1:
-            origen = m[:idx_a].strip()
-            destino = m[idx_a + 3:].strip()
-            if "de" not in origen.split():
-                origen_norm = normalizar_localidad(origen)
-                destino_norm = normalizar_localidad(destino)
-                if origen_norm and destino_norm:
-                    return origen_norm, destino_norm
-                if origen_norm:
-                    palabras_destino = destino.split()
-                    for j in range(len(palabras_destino), 0, -1):
-                        posible_destino = " ".join(palabras_destino[:j])
-                        destino_norm = normalizar_localidad(posible_destino)
-                        if destino_norm:
-                            return origen_norm, destino_norm
-    
+    # Formato incorrecto - responder con ayuda
+    print("❌ No se pudo extraer - formato incorrecto")
     return None, None
+
+def pedir_formato_correcto():
+    return "🤔 Para consultar horarios, usá el formato:\n• 'De [origen] a [destino]'\n\nEjemplo: 'De Viale a Parana'\n\n¿Querés intentarlo de nuevo? 😊"
 
 def interpretar_fecha(mensaje):
     m = mensaje.lower().strip()
@@ -663,7 +669,7 @@ def buscar_horarios(origen, destino, tipo, hora_limite=None):
 
 def formatear_horarios(resultados, origen, destino, fecha_str):
     if not any(resultados.values()):
-        return f"😕 No encontré servicios de {origen} a {destino} para {fecha_str}.\n\n⚠️ *Recordatorio:* Este bot es NO OFICIAL. ¿Ves algún error? Escribí 'Hola' y luego la opción 5 para enviar una sugerencia."
+        return f"😕 No encontré servicios de {origen} a {destino} para {fecha_str}."
     
     duracion = duraciones.get(f"{origen}-{destino}")
     duracion_str = f" (aprox. {duracion} min)" if duracion else ""
@@ -677,7 +683,7 @@ def formatear_horarios(resultados, origen, destino, fecha_str):
     if resultados["R18"]:
         texto += "🛣️ *Por Ruta 18:*\n" + "\n".join([f"• {h}" for h in resultados["R18"]]) + "\n\n"
     
-    texto += "⚠️ *Recordatorio:* Este bot es NO OFICIAL. ¿Ves algún error? Escribí 'Hola' y luego la opción 5 para enviar una sugerencia.\n\n😊 ¿Necesitas precio, próximo o último?"
+    texto += "😊 ¿Necesitas precio, próximo o último?"
     return texto
 
 def obtener_precio(origen, destino):
@@ -757,14 +763,23 @@ def mostrar_menu():
     )
 
 def no_entendido_inteligente(mensaje):
+    m = mensaje.lower().strip()
+    
+    # Si el usuario escribió algo como "Viale Parana" (dos localidades sin formato)
+    palabras = m.split()
+    if len(palabras) == 2:
+        loc1 = normalizar_localidad(palabras[0])
+        loc2 = normalizar_localidad(palabras[1])
+        if loc1 and loc2:
+            return f"🤔 Para consultar horarios, usá el formato:\n• 'De {loc1} a {loc2}'\n\n¿Querés intentarlo de nuevo? 😊"
+    
     return (
         "🤔 *No entendí lo que escribiste.*\n\n"
         "✅ *Frases que funcionan:*\n"
         "• 'De Parana a Viale'\n"
         "• 'Precio de Parana a Maria Grande'\n"
         "• 'Primer colectivo de Viale a Parana'\n\n"
-        "💡 Escribí 'Ayuda' para más ejemplos.\n\n"
-        "⚠️ *Recordatorio:* Este bot es NO OFICIAL. ¿Ves algún error? Escribí 'Hola' y luego la opción 5."
+        "💡 Escribí 'Ayuda' para más ejemplos."
     )
 
 def mostrar_ayuda_detallada():
@@ -796,7 +811,7 @@ def mostrar_ayuda_detallada():
     )
 
 def despedida():
-    return "😊 *¡Gracias por consultar!* Escribí 'Hola' para volver a empezar."
+    return "😊 *¡Gracias por consultar!* Escribí 'Hola' para volver a empezar.\n\n⚠️ *Recordatorio:* Este bot es un proyecto NO OFICIAL. Los horarios son orientativos."
 
 # ============================================
 # WEBHOOK PRINCIPAL
@@ -942,9 +957,9 @@ def whatsapp_reply():
             if origen and destino:
                 precio = obtener_precio(origen, destino)
                 if isinstance(precio, dict):
-                    msg.body(f"💰 {origen} → {destino}\n🛣️ Ruta 10: ${precio.get('ruta10', 'N/A')}\n🛣️ Ruta 18: ${precio.get('ruta18', 'N/A')}\n\n⚠️ *Recordatorio:* Este bot es NO OFICIAL. ¿Ves algún error? Escribí 'Hola' y luego la opción 5.")
+                    msg.body(f"💰 {origen} → {destino}\n🛣️ Ruta 10: ${precio.get('ruta10', 'N/A')}\n🛣️ Ruta 18: ${precio.get('ruta18', 'N/A')}")
                 elif precio:
-                    msg.body(f"💰 El pasaje de {origen} a {destino} cuesta **${precio}**\n\n⚠️ *Recordatorio:* Este bot es NO OFICIAL. ¿Ves algún error? Escribí 'Hola' y luego la opción 5.")
+                    msg.body(f"💰 El pasaje de {origen} a {destino} cuesta **${precio}**")
                 else:
                     msg.body(f"😕 No tengo precio de {origen} a {destino}")
                 registrar_interaccion(sender, incoming_msg, tipo="precio", consulta=f"{origen}→{destino}")
@@ -980,7 +995,7 @@ def whatsapp_reply():
                             if not primero or hora_a_minutos(resultados[r][0]) < hora_a_minutos(primero[0]):
                                 primero = (resultados[r][0], r)
                     if primero:
-                        msg.body(f"🚌 El primer colectivo sale a las {primero[0]} por {primero[1]}\n\n⚠️ *Recordatorio:* Este bot es NO OFICIAL. ¿Ves algún error? Escribí 'Hola' y luego la opción 5.")
+                        msg.body(f"🚌 El primer colectivo sale a las {primero[0]} por {primero[1]}")
                         registrar_interaccion(sender, incoming_msg, tipo="primer", consulta=f"{origen}→{destino}", horario=primero[0])
                     else:
                         msg.body(f"😕 No hay servicios para {fecha_str}")
@@ -992,7 +1007,7 @@ def whatsapp_reply():
                     todos = [(h, r) for r in ["R10", "R18", "R10+R18"] for h in resultados[r]]
                     todos.sort(key=lambda x: hora_a_minutos(x[0]))
                     if todos:
-                        msg.body(f"🚌 El próximo colectivo sale a las {todos[0][0]} por {todos[0][1]}\n\n⚠️ *Recordatorio:* Este bot es NO OFICIAL. ¿Ves algún error? Escribí 'Hola' y luego la opción 5.")
+                        msg.body(f"🚌 El próximo colectivo sale a las {todos[0][0]} por {todos[0][1]}")
                         registrar_interaccion(sender, incoming_msg, tipo="proximo", consulta=f"{origen}→{destino}", horario=todos[0][0])
                     else:
                         msg.body(f"😕 No hay más servicios hoy")
@@ -1004,7 +1019,7 @@ def whatsapp_reply():
                             if not ultimo or hora_a_minutos(resultados[r][-1]) > hora_a_minutos(ultimo[0]):
                                 ultimo = (resultados[r][-1], r)
                     if ultimo:
-                        msg.body(f"🚌 El último colectivo sale a las {ultimo[0]} por {ultimo[1]}\n\n⚠️ *Recordatorio:* Este bot es NO OFICIAL. ¿Ves algún error? Escribí 'Hola' y luego la opción 5.")
+                        msg.body(f"🚌 El último colectivo sale a las {ultimo[0]} por {ultimo[1]}")
                         registrar_interaccion(sender, incoming_msg, tipo="ultimo", consulta=f"{origen}→{destino}", horario=ultimo[0])
                     else:
                         msg.body(f"😕 No hay servicios para {fecha_str}")
@@ -1021,12 +1036,8 @@ def whatsapp_reply():
                 session[sender] = ctx
                 return str(resp)
             else:
-                if DEEPSEEK_API_KEY and not es_consulta_prohibida_para_ia(incoming_msg):
-                    respuesta_ia = consultar_deepseek(incoming_msg, sender, ctx)
-                    if respuesta_ia:
-                        msg.body(respuesta_ia)
-                        return str(resp)
-                msg.body(no_entendido_inteligente(incoming_msg))
+                # Si no se pudo extraer, pedir formato correcto
+                msg.body(pedir_formato_correcto())
                 return str(resp)
         
         # Consulta directa
@@ -1043,9 +1054,9 @@ def whatsapp_reply():
             if any(p in incoming_msg.lower() for p in ["precio", "cuesta", "$"]):
                 precio = obtener_precio(origen, destino)
                 if isinstance(precio, dict):
-                    msg.body(f"💰 {origen} → {destino}\n🛣️ Ruta 10: ${precio.get('ruta10', 'N/A')}\n🛣️ Ruta 18: ${precio.get('ruta18', 'N/A')}\n\n⚠️ *Recordatorio:* Este bot es NO OFICIAL. ¿Ves algún error? Escribí 'Hola' y luego la opción 5.")
+                    msg.body(f"💰 {origen} → {destino}\n🛣️ Ruta 10: ${precio.get('ruta10', 'N/A')}\n🛣️ Ruta 18: ${precio.get('ruta18', 'N/A')}")
                 elif precio:
-                    msg.body(f"💰 El pasaje cuesta **${precio}**\n\n⚠️ *Recordatorio:* Este bot es NO OFICIAL. ¿Ves algún error? Escribí 'Hola' y luego la opción 5.")
+                    msg.body(f"💰 El pasaje cuesta **${precio}**")
                 else:
                     msg.body(f"😕 No tengo precio")
                 registrar_interaccion(sender, incoming_msg, tipo="precio", consulta=f"{origen}→{destino}")
@@ -1062,7 +1073,7 @@ def whatsapp_reply():
                             if not primero or hora_a_minutos(resultados[r][0]) < hora_a_minutos(primero[0]):
                                 primero = (resultados[r][0], r)
                     if primero:
-                        msg.body(f"🚌 El primer colectivo el {fecha_str} sale a las {primero[0]} por {primero[1]}\n\n⚠️ *Recordatorio:* Este bot es NO OFICIAL. ¿Ves algún error? Escribí 'Hola' y luego la opción 5.")
+                        msg.body(f"🚌 El primer colectivo el {fecha_str} sale a las {primero[0]} por {primero[1]}")
                         registrar_interaccion(sender, incoming_msg, tipo="primer", consulta=f"{origen}→{destino}", horario=primero[0])
                     else:
                         msg.body(f"😕 No hay servicios")
@@ -1074,7 +1085,7 @@ def whatsapp_reply():
                     todos = [(h, r) for r in ["R10", "R18", "R10+R18"] for h in resultados[r]]
                     todos.sort(key=lambda x: hora_a_minutos(x[0]))
                     if todos:
-                        msg.body(f"🚌 El próximo colectivo sale a las {todos[0][0]} por {todos[0][1]}\n\n⚠️ *Recordatorio:* Este bot es NO OFICIAL. ¿Ves algún error? Escribí 'Hola' y luego la opción 5.")
+                        msg.body(f"🚌 El próximo colectivo sale a las {todos[0][0]} por {todos[0][1]}")
                         registrar_interaccion(sender, incoming_msg, tipo="proximo", consulta=f"{origen}→{destino}", horario=todos[0][0])
                     else:
                         msg.body(f"😕 No hay más servicios hoy")
@@ -1086,7 +1097,7 @@ def whatsapp_reply():
                             if not ultimo or hora_a_minutos(resultados[r][-1]) > hora_a_minutos(ultimo[0]):
                                 ultimo = (resultados[r][-1], r)
                     if ultimo:
-                        msg.body(f"🚌 El último colectivo el {fecha_str} sale a las {ultimo[0]} por {ultimo[1]}\n\n⚠️ *Recordatorio:* Este bot es NO OFICIAL. ¿Ves algún error? Escribí 'Hola' y luego la opción 5.")
+                        msg.body(f"🚌 El último colectivo el {fecha_str} sale a las {ultimo[0]} por {ultimo[1]}")
                         registrar_interaccion(sender, incoming_msg, tipo="ultimo", consulta=f"{origen}→{destino}", horario=ultimo[0])
                     else:
                         msg.body(f"😕 No hay servicios")
@@ -1101,14 +1112,8 @@ def whatsapp_reply():
                 registrar_interaccion(sender, incoming_msg, tipo="horarios", consulta=f"{origen}→{destino}")
                 return str(resp)
         
-        # Fallback a IA
-        if DEEPSEEK_API_KEY and not es_consulta_prohibida_para_ia(incoming_msg):
-            respuesta_ia = consultar_deepseek(incoming_msg, sender, ctx)
-            if respuesta_ia:
-                msg.body(respuesta_ia)
-                return str(resp)
-        
-        msg.body(no_entendido_inteligente(incoming_msg))
+        # Si no se pudo extraer en consulta directa, pedir formato correcto
+        msg.body(pedir_formato_correcto())
         return str(resp)
     
     except Exception as e:

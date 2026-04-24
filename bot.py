@@ -769,17 +769,30 @@ def no_entendido_inteligente(mensaje):
 
 def mostrar_ayuda_detallada():
     return (
-        "📘 *GUÍA DE USO*\n\n"
-        "✅ *EJEMPLOS:*\n"
-        "• 'De Parana a Viale'\n"
-        "• 'Precio de Parana a Maria Grande'\n"
+        "📘 *GUÍA DE USO - BOT DE HORARIOS*\n\n"
+        "Este bot te permite consultar horarios y precios de colectivos de forma rápida por WhatsApp.\n\n"
+        "🔹 *¿CÓMO SE USA?*\n"
+        "1. Escribí *Hola* para ver el menú principal.\n"
+        "2. Elegí una opción (1: horarios, 2: precios, etc.).\n"
+        "3. O directamente escribí frases como los ejemplos de abajo.\n\n"
+        "✅ *EJEMPLOS DE FRASES QUE FUNCIONAN:*\n"
+        "• 'De Parana a Viale' (para ver horarios)\n"
+        "• 'Precio de Parana a Maria Grande' (para ver precios)\n"
         "• 'Primer colectivo de Viale a Parana'\n"
         "• 'Próximo de Tabossi a Parana'\n"
         "• 'Último de Parana a Sosa el 17/03'\n\n"
-        "📍 *LOCALIDADES:*\n"
-        "Parana, Viale, Tabossi, Sosa, Maria Grande, Aldea San Antonio, Genolet, Sauce, 3 Bocas, Quebracho, El Ramblón\n\n"
-        "⚠️ *Recordatorio:* Este bot es NO OFICIAL. Los horarios son orientativos.\n\n"
-        "👋 Escribí 'Hola' para volver al menú."
+        "📍 *LOCALIDADES CON HORARIOS:*\nParana • Viale • Tabossi • Sosa • Maria Grande\n\n"
+        "📍 *LOCALIDADES ADICIONALES (SOLO PARA PRECIOS):*\nAldea San Antonio • Genolet • Sauce • 3 Bocas • Quebracho • El Ramblón\n\n"
+        "⚠️ *IMPORTANTE:*\n"
+        "Este bot es un proyecto NO OFICIAL. Los horarios son orientativos.\n"
+        "Siempre consultá en la terminal antes de viajar.\n\n"
+        "📝 *¿VES ALGÚN ERROR?*\n"
+        "Escribí *Hola*, luego elegí la opción *5* (Enviar sugerencias) y contanos qué está mal.\n"
+        "Así ayudás a mejorar el bot para todos.\n\n"
+        "👋 *PARA VOLVER AL MENÚ:*\n"
+        "Escribí *Hola* en cualquier momento.\n\n"
+        "💬 *¿NECESITÁS AYUDA EN VIVO?*\n"
+        "Escribí cualquier frase con 'ayuda' o volvé a escribir *Hola* para reiniciar."
     )
 
 def despedida():

@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN FINAL")
+print("🚀 BOT INICIADO - VERSIÓN CORREGIDA")
 print("✅ Anti-spam: 4 segundos")
 print("✅ Límites IA: 20/día, 150/mes")
 print("✅ Contexto: 5 minutos de memoria")
@@ -248,7 +248,7 @@ def es_consulta_prohibida_para_ia(mensaje):
     return False
 
 # ============================================
-# VERIFICACIÓN DE CONTEXTO ACTIVO (5 minutos)
+# VERIFICACIÓN DE CONTEXTO ACTIVO
 # ============================================
 
 def contexto_activo(ctx):
@@ -903,11 +903,10 @@ def whatsapp_reply():
             return str(resp)
         
         if incoming_msg.lower() == "ayuda":
-            # ✅ "Ayuda" NO limpia el contexto
             msg.body(mostrar_ayuda_detallada())
             return str(resp)
         
-        # ✅ Detectar palabras clave con contexto (limpiando signos de puntuación)
+        # Detectar palabras clave con contexto (limpiando signos de puntuación)
         mensaje_limpio = incoming_msg.lower().strip()
         mensaje_limpio = re.sub(r'[¿?!¡.,;:]', '', mensaje_limpio)
         
@@ -1016,7 +1015,7 @@ def whatsapp_reply():
                 msg.body(mostrar_menu())
                 return str(resp)
             
-            import re
+            # Usamos el re que ya está importado al principio
             match_telefono = re.search(r'(?:tel[eé]fono:?)\s*(\d+)', incoming_msg, re.IGNORECASE)
             match_mensaje = re.search(r'(?:mensaje:?)\s*(.+?)(?:\s*(?:gracias|$))', incoming_msg, re.IGNORECASE)
             

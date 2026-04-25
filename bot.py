@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN CORREGIDA")
+print("🚀 BOT INICIADO - VERSIÓN FINAL")
 print("✅ Anti-spam: 4 segundos")
 print("✅ Límites IA: 20/día, 150/mes")
 print("✅ Contexto: 5 minutos de memoria")
@@ -597,7 +597,6 @@ def extraer_origen_destino(mensaje):
                                 return origen_norm, destino_norm
                     break
     
-    # Formato incorrecto - responder con ayuda
     print("❌ No se pudo extraer - formato incorrecto")
     return None, None
 
@@ -751,11 +750,11 @@ def mostrar_menu():
     return (
         "👋 *Hola! Soy el asistente virtual* 🚌\n\n"
         "¿Qué querés hacer?\n\n"
-        "🔹 *1* → Ver horarios\n"
-        "🔹 *2* → Consultar precios\n"
-        "🔹 *3* → Información útil\n"
-        "🔹 *4* → Preguntas frecuentes\n"
-        "🔹 *5* → 📝 Enviar sugerencias\n\n"
+        "🔹 1 → 📅 Ver horarios\n"
+        "🔹 2 → 💰 Consultar precios\n"
+        "🔹 3 → ℹ️ Información útil\n"
+        "🔹 4 → ❓ Preguntas frecuentes\n"
+        "🔹 5 → 📝 Enviar sugerencias\n\n"
         "📝 *Ejemplos:*\n"
         "• 'De Parana a Viale'\n"
         "• 'Precio de Parana a Maria Grande'\n"
@@ -904,11 +903,13 @@ def whatsapp_reply():
             return str(resp)
         
         if incoming_msg.lower() == "ayuda":
+            # ✅ "Ayuda" NO limpia el contexto
             msg.body(mostrar_ayuda_detallada())
             return str(resp)
         
-        # ✅ NUEVA CORRECCIÓN: Detectar "precio", "primer", "próximo", "último" con contexto
+        # ✅ Detectar palabras clave con contexto (limpiando signos de puntuación)
         mensaje_limpio = incoming_msg.lower().strip()
+        mensaje_limpio = re.sub(r'[¿?!¡.,;:]', '', mensaje_limpio)
         
         # Precio con contexto
         if mensaje_limpio in ["precio"] and ctx.get("ultimo_origen") and ctx.get("ultimo_destino"):

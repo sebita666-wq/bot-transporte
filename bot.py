@@ -42,6 +42,10 @@ DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
 app.secret_key = SECRET_KEY
 
+# ============================================
+# CONTROL DE LÍMITES DE IA POR USUARIO
+# ============================================
+
 def cargar_limites_ia():
     if os.path.exists(LIMITES_IA_FILE):
         with open(LIMITES_IA_FILE, 'r', encoding='utf-8') as f:
@@ -901,6 +905,79 @@ def whatsapp_reply():
         
         if incoming_msg.lower() == "ayuda":
             msg.body(mostrar_ayuda_detallada())
+            return str(resp)
+        
+        # ✅ NUEVA CORRECCIÓN: Detectar "precio", "primer", "próximo", "último" con contexto
+        mensaje_limpio = incoming_msg.lower().strip()
+        
+        # Precio con contexto
+        if mensaje_limpio in ["precio"] and ctx.get("ultimo_origen") and ctx.get("ultimo_destino"):
+            origen = ctx["ultimo_origen"]
+            destino = ctx["ultimo_destino"]
+            print(f"💰 Precio con contexto: {origen} → {destino}")
+            precio = obtener_precio(origen, destino)
+            if isinstance(precio, dict):
+                msg.body(f"💰 {origen} → {destino}\n🛣️ Ruta 10: ${precio.get('ruta10', 'N/A')}\n🛣️ Ruta 18: ${precio.get('ruta18', 'N/A')}")
+            elif precio:
+                msg.body(f"💰 El pasaje de {origen} a {destino} cuesta **${precio}**")
+            else:
+                msg.body(f"😕 No tengo precio de {origen} a {destino}")
+            registrar_interaccion(sender, incoming_msg, tipo="precio", consulta=f"{origen}→{destino}")
+            return str(resp)
+        
+        # Próximo con contexto
+        if mensaje_limpio in ["próximo", "proximo"] and ctx.get("ultimo_origen") and ctx.get("ultimo_destino"):
+            origen = ctx["ultimo_origen"]
+            destino = ctx["ultimo_destino"]
+            fecha = ahora_argentina()
+            tipo_dia = obtener_tipo_dia(fecha)
+            hora_actual = fecha.hour * 60 + fecha.minute
+            resultados = buscar_horarios(origen, destino, tipo_dia, hora_actual)
+            todos = [(h, r) for r in ["R10", "R18", "R10+R18"] for h in resultados[r]]
+            todos.sort(key=lambda x: hora_a_minutos(x[0]))
+            if todos:
+                msg.body(f"🚌 El próximo colectivo de {origen} a {destino} sale a las {todos[0][0]} por {todos[0][1]}")
+                registrar_interaccion(sender, incoming_msg, tipo="proximo", consulta=f"{origen}→{destino}", horario=todos[0][0])
+            else:
+                msg.body(f"😕 No hay más servicios de {origen} a {destino} hoy")
+            return str(resp)
+        
+        # Primer con contexto
+        if mensaje_limpio in ["primer", "primero"] and ctx.get("ultimo_origen") and ctx.get("ultimo_destino"):
+            origen = ctx["ultimo_origen"]
+            destino = ctx["ultimo_destino"]
+            fecha = ahora_argentina()
+            tipo_dia = obtener_tipo_dia(fecha)
+            resultados = buscar_horarios(origen, destino, tipo_dia)
+            primero = None
+            for r in ["R10", "R18", "R10+R18"]:
+                if resultados[r]:
+                    if not primero or hora_a_minutos(resultados[r][0]) < hora_a_minutos(primero[0]):
+                        primero = (resultados[r][0], r)
+            if primero:
+                msg.body(f"🚌 El primer colectivo de {origen} a {destino} sale a las {primero[0]} por {primero[1]}")
+                registrar_interaccion(sender, incoming_msg, tipo="primer", consulta=f"{origen}→{destino}", horario=primero[0])
+            else:
+                msg.body(f"😕 No hay servicios de {origen} a {destino} hoy")
+            return str(resp)
+        
+        # Último con contexto
+        if mensaje_limpio in ["último", "ultimo", "final"] and ctx.get("ultimo_origen") and ctx.get("ultimo_destino"):
+            origen = ctx["ultimo_origen"]
+            destino = ctx["ultimo_destino"]
+            fecha = ahora_argentina()
+            tipo_dia = obtener_tipo_dia(fecha)
+            resultados = buscar_horarios(origen, destino, tipo_dia)
+            ultimo = None
+            for r in ["R10", "R18", "R10+R18"]:
+                if resultados[r]:
+                    if not ultimo or hora_a_minutos(resultados[r][-1]) > hora_a_minutos(ultimo[0]):
+                        ultimo = (resultados[r][-1], r)
+            if ultimo:
+                msg.body(f"🚌 El último colectivo de {origen} a {destino} sale a las {ultimo[0]} por {ultimo[1]}")
+                registrar_interaccion(sender, incoming_msg, tipo="ultimo", consulta=f"{origen}→{destino}", horario=ultimo[0])
+            else:
+                msg.body(f"😕 No hay servicios de {origen} a {destino} hoy")
             return str(resp)
         
         # Opciones numéricas

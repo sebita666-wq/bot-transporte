@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN CON GRUPO")
+print("🚀 BOT INICIADO - VERSIÓN CORREGIDA")
 print("✅ Anti-spam: 4 segundos")
 print("✅ Límites IA: 20/día, 150/mes")
 print("✅ Contexto: 5 minutos de memoria")
@@ -471,7 +471,7 @@ respondé: 'Para ver horarios usá el formato "De [origen] a [destino]". Ej: "De
 
 📋 *REGLAS:*
 1️⃣ NO respondas sobre PRECIOS, HORARIOS, SUGERENCIAS o PREGUNTAS FRECUENTES (FAQ). 
-2️⃣ Si el usuario pregunta por el CLIMA, actividades turísticas o de recreacion, respondé con información general.
+2️⃣ Si el usuario pregunta por el CLIMA o actividades turísticas, respondé con información general.
 3️⃣ Si el usuario pregunta si este bot es oficial, respondé: "No, es un proyecto independiente. Los horarios son orientativos. Si ves un error, escribí 'Hola' y luego la opción 5."
 4️⃣ Respondé con EMOTICONES: 🚌 📍 💰 ✅ ❌ 😊 ⏰ 📅
 5️⃣ Usá *negritas* con asteriscos
@@ -764,7 +764,7 @@ def mostrar_menu():
         "---\n\n"
         "⚠️ *AVISO IMPORTANTE:*  \n"
         "Este bot es un proyecto independiente y NO tiene relación oficial con ninguna empresa de transporte.  \n"
-        "Los horarios son orientativos.\n\n"
+        "Los horarios son orientativos."
     )
 
 def mostrar_grupo():
@@ -1131,7 +1131,13 @@ def whatsapp_reply():
                 session[sender] = ctx
                 return str(resp)
             else:
-                # Si no se pudo extraer, pedir formato correcto
+                # Si no se pudo extraer, intentar con IA
+                if DEEPSEEK_API_KEY and not es_consulta_prohibida_para_ia(incoming_msg):
+                    respuesta_ia = consultar_deepseek(incoming_msg, sender, ctx)
+                    if respuesta_ia:
+                        msg.body(respuesta_ia)
+                        return str(resp)
+                # Si tampoco la IA respondió, pedir formato correcto
                 msg.body(pedir_formato_correcto())
                 return str(resp)
         
@@ -1207,7 +1213,14 @@ def whatsapp_reply():
                 registrar_interaccion(sender, incoming_msg, tipo="horarios", consulta=f"{origen}→{destino}")
                 return str(resp)
         
-        # Si no se pudo extraer en consulta directa, pedir formato correcto
+        # Si no se pudo extraer en consulta directa, intentar con IA
+        if DEEPSEEK_API_KEY and not es_consulta_prohibida_para_ia(incoming_msg):
+            respuesta_ia = consultar_deepseek(incoming_msg, sender, ctx)
+            if respuesta_ia:
+                msg.body(respuesta_ia)
+                return str(resp)
+        
+        # Si tampoco la IA respondió, pedir formato correcto
         msg.body(pedir_formato_correcto())
         return str(resp)
     

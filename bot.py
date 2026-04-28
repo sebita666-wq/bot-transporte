@@ -765,8 +765,6 @@ def mostrar_menu():
         "⚠️ *AVISO IMPORTANTE:*  \n"
         "Este bot es un proyecto independiente y NO tiene relación oficial con ninguna empresa de transporte.  \n"
         "Los horarios son orientativos.\n\n"
-        "📝 *¿Encontraste un error?*  \n"
-        "Escribí *Hola*, luego elegí la opción *5* y enviá tu mensaje. Así ayudás a mejorar el bot para todos."
     )
 
 def mostrar_grupo():

@@ -19,7 +19,7 @@ try:
 except:
     timezone = pytz.timezone('America/Argentina/Cordoba')
 
-print("🚀 BOT INICIADO - VERSIÓN CORREGIDA")
+print("🚀 BOT INICIADO - VERSIÓN CON GRUPO")
 print("✅ Anti-spam: 4 segundos")
 print("✅ Límites IA: 20/día, 150/mes")
 print("✅ Contexto: 5 minutos de memoria")
@@ -471,7 +471,7 @@ respondé: 'Para ver horarios usá el formato "De [origen] a [destino]". Ej: "De
 
 📋 *REGLAS:*
 1️⃣ NO respondas sobre PRECIOS, HORARIOS, SUGERENCIAS o PREGUNTAS FRECUENTES (FAQ). 
-2️⃣ Si el usuario pregunta por el CLIMA o actividades turísticas, respondé con información general.
+2️⃣ Si el usuario pregunta por el CLIMA, actividades turísticas o de recreacion, respondé con información general.
 3️⃣ Si el usuario pregunta si este bot es oficial, respondé: "No, es un proyecto independiente. Los horarios son orientativos. Si ves un error, escribí 'Hola' y luego la opción 5."
 4️⃣ Respondé con EMOTICONES: 🚌 📍 💰 ✅ ❌ 😊 ⏰ 📅
 5️⃣ Usá *negritas* con asteriscos
@@ -754,7 +754,8 @@ def mostrar_menu():
         "🔹 2 → 💰 Consultar precios\n"
         "🔹 3 → ℹ️ Información útil\n"
         "🔹 4 → ❓ Preguntas frecuentes\n"
-        "🔹 5 → 📝 Enviar sugerencias\n\n"
+        "🔹 5 → 📝 Enviar sugerencias\n"
+        "🔹 6 → 📢 Unite al grupo de WhatsApp\n\n"
         "📝 *Ejemplos:*\n"
         "• 'De Parana a Viale'\n"
         "• 'Precio de Parana a Maria Grande'\n"
@@ -766,6 +767,19 @@ def mostrar_menu():
         "Los horarios son orientativos.\n\n"
         "📝 *¿Encontraste un error?*  \n"
         "Escribí *Hola*, luego elegí la opción *5* y enviá tu mensaje. Así ayudás a mejorar el bot para todos."
+    )
+
+def mostrar_grupo():
+    return (
+        "📢 *GRUPO COMUNITARIO DE WHATSAPP*\n\n"
+        "Unite al grupo donde los pasajeros comparten información en tiempo real:\n\n"
+        "⚠️ *Demoras*\n"
+        "⚠️ *Colectivos rotos*\n"
+        "⚠️ *Cambios de horarios*\n"
+        "⚠️ *Y se ayudan entre viajeros*\n\n"
+        "🔗 *Link de invitación:*\n"
+        "https://chat.whatsapp.com/LbpAPHZs3PDKXXy9pRtY9X\n\n"
+        "¡Entre todos nos mantenemos informados! 🚌"
     )
 
 def no_entendido_inteligente(mensaje):
@@ -1007,6 +1021,10 @@ def whatsapp_reply():
             msg.body(mostrar_menu_sugerencia())
             return str(resp)
         
+        if incoming_msg == "6":
+            msg.body(mostrar_grupo())
+            return str(resp)
+        
         # Sugerencias
         if ctx.get("estado") == "esperando_sugerencia":
             if incoming_msg.lower() == "cancelar":
@@ -1015,7 +1033,6 @@ def whatsapp_reply():
                 msg.body(mostrar_menu())
                 return str(resp)
             
-            # Usamos el re que ya está importado al principio
             match_telefono = re.search(r'(?:tel[eé]fono:?)\s*(\d+)', incoming_msg, re.IGNORECASE)
             match_mensaje = re.search(r'(?:mensaje:?)\s*(.+?)(?:\s*(?:gracias|$))', incoming_msg, re.IGNORECASE)
             
